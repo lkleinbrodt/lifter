@@ -1,53 +1,91 @@
-/**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
- */
-
 import { Platform } from 'react-native';
 
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
+// 1. PALETTE: The "Industrial Zen" colors
+const PALETTE = {
+  // Base
+  slate900: '#121212', // Main Background (Deep Charcoal)
+  slate800: '#1E2225', // Cards / Surface
+  slate700: '#2C3035', // Borders / Accents
+  slate400: '#8B959E', // Muted Text
 
+  // Accents
+  sage: '#8DA399', // Primary Active
+  sageLight: '#A4C3B2', // Highlights
+  sageMuted: 'rgba(141, 163, 153, 0.15)', // Light green bg
+
+  // Functional
+  white: '#EDEDED',
+  error: '#CF6679',
+};
+
+// 2. EXPORTED COLORS (The semantic names used in components)
 export const Colors = {
-  light: {
-    text: '#11181C',
-    background: '#fff',
-    tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
-    tabIconSelected: tintColorLight,
-  },
   dark: {
-    text: '#ECEDEE',
-    background: '#151718',
-    tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
-    tabIconSelected: tintColorDark,
+    background: PALETTE.slate900,
+    surface: PALETTE.slate800,
+    surfaceHighlight: PALETTE.slate700,
+    text: PALETTE.white,
+    textMuted: PALETTE.slate400,
+    tint: PALETTE.sage,
+    tintMuted: PALETTE.sageMuted,
+    icon: PALETTE.slate400,
+    border: 'rgba(255,255,255,0.08)', // Subtle border for 3D effect
+    tabIconDefault: PALETTE.slate400,
+    tabIconSelected: PALETTE.sage,
+  },
+  // Mapping light mode to dark mode because we prefer the dark aesthetic
+  // (You can fill this in later if you really want a light mode)
+  light: {
+    background: PALETTE.slate900,
+    surface: PALETTE.slate800,
+    text: PALETTE.white,
+    tint: PALETTE.sage,
+    icon: PALETTE.slate400,
+    tabIconDefault: PALETTE.slate400,
+    tabIconSelected: PALETTE.sage,
+    border: 'rgba(255,255,255,0.08)',
   },
 };
 
-export const Fonts = Platform.select({
-  ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
-    mono: 'ui-monospace',
+// 3. TYPOGRAPHY: Enforcing Monospace
+export const Fonts = {
+  family: Platform.select({
+    ios: 'Menlo',
+    android: 'monospace',
+    default: 'monospace',
+  }),
+  size: {
+    display: 32, // Huge weights
+    header: 22,
+    title: 18,
+    body: 16,
+    label: 13,
   },
-  default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
+  weight: {
+    regular: '400',
+    bold: '700',
   },
-  web: {
-    sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-    serif: "Georgia, 'Times New Roman', serif",
-    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
-    mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+};
+
+// 4. LAYOUT & SHADOWS: The "3D" Feel
+export const Layout = {
+  radius: 16,
+  spacing: 16,
+};
+
+export const Shadows = {
+  card: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 5,
+    elevation: 8,
   },
-});
+  button: {
+    shadowColor: PALETTE.sage,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+};

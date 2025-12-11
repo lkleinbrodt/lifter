@@ -1,98 +1,134 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableWithoutFeedback } from 'react-native';
+import { LiftKey, Maxes, defaultMaxes, loadMaxes, saveMaxes } from '@/lib/storage';
+import React, { useCallback, useEffect, useState } from 'react';
+import { getLiftLabel, getTrainingMaxForLift } from '@/lib/workout-plan';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
+import { Card } from '@/components/ui/Card';
+import { Colors } from '@/constants/theme';
+import { Input } from '@/components/ui/Input';
+import { SafeAreaContainer } from '@/components/safe-area';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-export default function HomeScreen() {
+const liftOrder: LiftKey[] = ['squat', 'bench', 'deadlift'];
+
+export default function MaxesScreen() {
+  const insets = useSafeAreaInsets();
+  const [maxes, setMaxes] = useState<Maxes>(defaultMaxes);
+  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState('');
+
+  useEffect(() => {
+    const load = async () => {
+      const stored = await loadMaxes();
+      setMaxes(stored);
+      setLoading(false);
+    };
+    load();
+  }, []);
+
+  const persist = useCallback(async (next: Maxes) => {
+    setStatus('Saving…');
+    await saveMaxes(next);
+    setStatus('Saved');
+    setTimeout(() => setStatus(''), 1500);
+  }, []);
+
+  const handleChange = useCallback((key: LiftKey, text: string) => {
+    const numeric = Number(text.replace(/[^0-9]/g, ''));
+    setMaxes((prev) => ({ ...prev, [key]: Number.isFinite(numeric) ? numeric : 0 }));
+  }, []);
+
+  const handleBlur = useCallback(
+    (key: LiftKey) => {
+      const next = { ...maxes };
+      if (!Number.isFinite(next[key])) {
+        next[key] = 0;
+      }
+      void persist(next);
+    },
+    [maxes, persist],
+  );
+
+  if (loading) {
+    return (
+      <ThemedView style={styles.centered}>
+        <ThemedText>Loading maxes…</ThemedText>
+      </ThemedView>
+    );
+  }
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <SafeAreaContainer edges={['top', 'left', 'right']}>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <ThemedView style={styles.container}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={{ flex: 1 }}>
+            <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}>
+              <ThemedText type="display">
+                One Rep Maxes
+              </ThemedText>
+              <ThemedText style={styles.subtle}>Training Max = 90% of your 1RM.</ThemedText>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+              {liftOrder.map((lift) => {
+                const tm = Math.round(getTrainingMaxForLift(maxes, lift));
+                return (
+                  <Card key={lift} style={styles.card}>
+                    <Input
+                      label={getLiftLabel(lift)}
+                      suffix="lbs"
+                      value={maxes[lift] ? String(maxes[lift]) : ''}
+                      onChangeText={(text) => handleChange(lift, text)}
+                      onBlur={() => handleBlur(lift)}
+                      keyboardType="number-pad"
+                      inputMode="numeric"
+                    />
+                    <ThemedText style={styles.trainingMax}>Training Max: {tm} lbs</ThemedText>
+                  </Card>
+                );
+              })}
+
+              {status ? <ThemedText style={styles.status}>{status}</ThemedText> : null}
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </ThemedView>
+      </TouchableWithoutFeedback>
+    </SafeAreaContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
+  container: {
+    flex: 1,
+    padding: 16,
+  },
+  card: {
+    marginBottom: 16,
+  },
+  scrollContent: {
+    paddingBottom: 32,
+    gap: 16,
+  },
+  subtle: {
+    color: Colors.dark.textMuted,
+  },
+  helper: {
+    color: Colors.dark.textMuted,
+  },
+  trainingMax: {
+    color: Colors.dark.tint,
+    marginTop: 8,
+    fontSize: 14,
+  },
+  status: {
+    textAlign: 'center',
+    color: Colors.dark.textMuted,
+  },
+  centered: {
+    flex: 1,
     alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+    justifyContent: 'center',
   },
 });
