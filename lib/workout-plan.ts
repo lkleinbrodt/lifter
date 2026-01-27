@@ -71,8 +71,8 @@ export function trainingMax(oneRepMax: number) {
   return base * 0.9;
 }
 
-export function calculateSetWeight(oneRepMax: number, percent: number) {
-  const tm = trainingMax(oneRepMax);
+export function calculateSetWeight(trainingMaxValue: number, percent: number) {
+  const tm = Number.isFinite(trainingMaxValue) ? trainingMaxValue : 0;
   return roundToFive(tm * percent);
 }
 
@@ -94,5 +94,28 @@ export function parseWorkoutId(id: string | undefined) {
 }
 
 export function getTrainingMaxForLift(maxes: Maxes, lift: LiftKey) {
-  return trainingMax(maxes[lift] ?? 0);
+  return Number.isFinite(maxes[lift]) ? maxes[lift] : 0;
+}
+
+const defaultPlates = [45, 35, 25, 10, 5, 2.5];
+
+export function calculatePlateMath(totalWeight: number, barWeight = 45, plates = defaultPlates) {
+  const safeTotal = Number.isFinite(totalWeight) ? totalWeight : 0;
+  const remaining = safeTotal - barWeight;
+  if (remaining <= 0) {
+    return [];
+  }
+
+  let perSide = remaining / 2;
+  const selected: number[] = [];
+
+  for (const plate of plates) {
+    const count = Math.floor(perSide / plate + 1e-6);
+    if (count > 0) {
+      selected.push(...Array.from({ length: count }, () => plate));
+      perSide = Number((perSide - count * plate).toFixed(2));
+    }
+  }
+
+  return selected;
 }
