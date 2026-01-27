@@ -21,6 +21,7 @@ const MAPPING = {
   'gauge.medium': 'speed',
   'checklist.checked': 'fact-check',
   'list.bullet': 'format-list-bulleted',
+  'ellipsis.circle': 'more-vert',
 } as IconMapping;
 
 /**

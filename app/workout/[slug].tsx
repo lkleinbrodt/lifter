@@ -1,9 +1,10 @@
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
-import { Maxes, clearCompleted, defaultMaxes, loadCompleted, loadMaxes, saveCompleted } from '@/lib/storage';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { Maxes, defaultMaxes, loadCompleted, loadMaxes, saveCompleted } from '@/lib/storage';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   calculateSetWeight,
+  calculatePlateMath,
   getLiftLabel,
   getTrainingMaxForLift,
   getWeekSets,
@@ -56,6 +57,14 @@ export default function WorkoutDetailScreen() {
     weight: calculateSetWeight(maxes[lift] ?? 0, set.percent),
   }));
 
+  const formatPlateMath = (weight: number) => {
+    const plates = calculatePlateMath(weight);
+    if (plates.length === 0) {
+      return 'Bar only';
+    }
+    return `Plates per side: ${plates.join(' + ')}`;
+  };
+
   const handleComplete = async () => {
     const updated = Array.from(new Set([...completed, id]));
     setCompleted(updated);
@@ -63,20 +72,6 @@ export default function WorkoutDetailScreen() {
     router.back();
   };
 
-  const handleReset = () => {
-    Alert.alert('Reset cycle?', 'This will clear all workout completions', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Reset',
-        style: 'destructive',
-        onPress: async () => {
-          await clearCompleted();
-          setCompleted([]);
-          Alert.alert('Cycle reset', 'All workout completions have been cleared.');
-        },
-      },
-    ]);
-  };
 
   if (loading) {
     return (
@@ -88,7 +83,11 @@ export default function WorkoutDetailScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: `Week ${week} - ${getLiftLabel(lift)}` }} />
+      <Stack.Screen
+        options={{
+          title: `Week ${week} - ${getLiftLabel(lift)}`,
+        }}
+      />
       <SafeAreaContainer edges={['top', 'left', 'right', 'bottom']}>
         <ThemedView style={styles.container}>
           <ScrollView
@@ -98,12 +97,14 @@ export default function WorkoutDetailScreen() {
 
             <Card style={styles.card}>
               {sets.map((set, index) => (
-                <View key={`${set.reps}-${index}`} style={[styles.row, set.amrap && styles.amrapRow]}>
+                <View key={`${set.reps}-${index}`} style={styles.row}>
                   <View style={[styles.bullet, isDone && styles.bulletDone]} />
                   <View style={styles.rowContent}>
-                    <ThemedText type="defaultSemiBold">{set.weight} lbs</ThemedText>
-                    <ThemedText style={styles.subtle}>
-                      {set.reps} reps{set.amrap ? ' (AMRAP)' : ''}
+                    <ThemedText type="defaultSemiBold">
+                      {set.weight} lbs for {set.reps} reps{set.amrap ? ' (AMRAP)' : ''}
+                    </ThemedText>
+                    <ThemedText style={styles.plateMath}>
+                      {formatPlateMath(set.weight)}
                     </ThemedText>
                   </View>
                 </View>
@@ -116,8 +117,6 @@ export default function WorkoutDetailScreen() {
               disabled={isDone}
               style={styles.cta}
             />
-
-            <Button title="Reset Cycle" onPress={handleReset} variant="secondary" style={styles.reset} />
           </ScrollView>
         </ThemedView>
       </SafeAreaContainer>
@@ -148,10 +147,7 @@ const styles = StyleSheet.create({
   rowContent: {
     flex: 1,
     gap: 4,
-  },
-  amrapRow: {
-    backgroundColor: Colors.dark.tintMuted,
-    borderRadius: 12,
+    flexDirection: 'column',
   },
   bullet: {
     width: 14,
@@ -168,11 +164,13 @@ const styles = StyleSheet.create({
   cta: {
     marginTop: 8,
   },
-  reset: {
-    marginTop: 8,
-  },
   subtle: {
     color: Colors.dark.textMuted,
+  },
+  plateMath: {
+    color: Colors.dark.textMuted,
+    fontSize: 12,
+    marginTop: 4,
   },
   centered: {
     flex: 1,

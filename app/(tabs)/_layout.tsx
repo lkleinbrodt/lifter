@@ -9,6 +9,7 @@ import { Tabs } from 'expo-router';
 export default function TabLayout() {
   return (
     <Tabs
+      initialRouteName="workouts"
       screenOptions={{
         headerShown: false,
         tabBarButton: HapticTab,

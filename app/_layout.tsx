@@ -18,10 +18,22 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: Colors.dark.background }}>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="workout/[slug]" options={{ title: 'Workout' }} />
-        </Stack>
+      <Stack>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="workout/[slug]"
+          options={{
+            headerStyle: {
+              backgroundColor: Colors.dark.surface,
+            },
+            headerTintColor: Colors.dark.text,
+            headerTitleStyle: {
+              color: Colors.dark.text,
+            },
+            headerBackTitle: 'Back',
+          }}
+        />
+      </Stack>
         <StatusBar style="light" />
       </ThemeProvider>
     </GestureHandlerRootView>
