@@ -1,8 +1,9 @@
-import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableWithoutFeedback } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableWithoutFeedback, View } from 'react-native';
 import { LiftKey, Maxes, defaultMaxes, loadMaxes, saveMaxes } from '@/lib/storage';
 import React, { useCallback, useEffect, useState } from 'react';
-import { getLiftLabel, getTrainingMaxForLift } from '@/lib/workout-plan';
+import { getLiftLabel, trainingMax } from '@/lib/workout-plan';
 
+import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Colors } from '@/constants/theme';
 import { Input } from '@/components/ui/Input';
@@ -16,6 +17,7 @@ const liftOrder: LiftKey[] = ['squat', 'bench', 'deadlift'];
 export default function MaxesScreen() {
   const insets = useSafeAreaInsets();
   const [maxes, setMaxes] = useState<Maxes>(defaultMaxes);
+  const [oneRepMaxes, setOneRepMaxes] = useState<Maxes>(defaultMaxes);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('');
 
@@ -40,6 +42,11 @@ export default function MaxesScreen() {
     setMaxes((prev) => ({ ...prev, [key]: Number.isFinite(numeric) ? numeric : 0 }));
   }, []);
 
+  const handleOneRepChange = useCallback((key: LiftKey, text: string) => {
+    const numeric = Number(text.replace(/[^0-9]/g, ''));
+    setOneRepMaxes((prev) => ({ ...prev, [key]: Number.isFinite(numeric) ? numeric : 0 }));
+  }, []);
+
   const handleBlur = useCallback(
     (key: LiftKey) => {
       const next = { ...maxes };
@@ -49,6 +56,16 @@ export default function MaxesScreen() {
       void persist(next);
     },
     [maxes, persist],
+  );
+
+  const handleApplyOneRepMax = useCallback(
+    async (key: LiftKey) => {
+      const next = { ...maxes };
+      next[key] = Math.round(trainingMax(oneRepMaxes[key] ?? 0));
+      setMaxes(next);
+      await persist(next);
+    },
+    [maxes, oneRepMaxes, persist],
   );
 
   if (loading) {
@@ -67,17 +84,16 @@ export default function MaxesScreen() {
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={{ flex: 1 }}>
             <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}>
-              <ThemedText type="display">
-                One Rep Maxes
+              <ThemedText type="display">Training Maxes</ThemedText>
+              <ThemedText style={styles.subtle}>
+                Update your training max directly, or calculate it from a 1RM.
               </ThemedText>
-              <ThemedText style={styles.subtle}>Training Max = 90% of your 1RM.</ThemedText>
 
               {liftOrder.map((lift) => {
-                const tm = Math.round(getTrainingMaxForLift(maxes, lift));
                 return (
                   <Card key={lift} style={styles.card}>
                     <Input
-                      label={getLiftLabel(lift)}
+                      label={`${getLiftLabel(lift)} Training Max`}
                       suffix="lbs"
                       value={maxes[lift] ? String(maxes[lift]) : ''}
                       onChangeText={(text) => handleChange(lift, text)}
@@ -85,7 +101,22 @@ export default function MaxesScreen() {
                       keyboardType="number-pad"
                       inputMode="numeric"
                     />
-                    <ThemedText style={styles.trainingMax}>Training Max: {tm} lbs</ThemedText>
+                    <View style={styles.calcRow}>
+                      <Input
+                        label="Calculate from 1RM"
+                        suffix="lbs"
+                        value={oneRepMaxes[lift] ? String(oneRepMaxes[lift]) : ''}
+                        onChangeText={(text) => handleOneRepChange(lift, text)}
+                        keyboardType="number-pad"
+                        inputMode="numeric"
+                      />
+                      <Button
+                        title="Use 1RM"
+                        onPress={() => handleApplyOneRepMax(lift)}
+                        variant="secondary"
+                        style={styles.calcButton}
+                      />
+                    </View>
                   </Card>
                 );
               })}
@@ -117,10 +148,11 @@ const styles = StyleSheet.create({
   helper: {
     color: Colors.dark.textMuted,
   },
-  trainingMax: {
-    color: Colors.dark.tint,
-    marginTop: 8,
-    fontSize: 14,
+  calcRow: {
+    gap: 12,
+  },
+  calcButton: {
+    alignSelf: 'flex-start',
   },
   status: {
     textAlign: 'center',

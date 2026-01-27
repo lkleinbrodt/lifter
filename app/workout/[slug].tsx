@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   calculateSetWeight,
+  calculatePlateMath,
   getLiftLabel,
   getTrainingMaxForLift,
   getWeekSets,
@@ -56,6 +57,14 @@ export default function WorkoutDetailScreen() {
     weight: calculateSetWeight(maxes[lift] ?? 0, set.percent),
   }));
 
+  const formatPlateMath = (weight: number) => {
+    const plates = calculatePlateMath(weight);
+    if (plates.length === 0) {
+      return 'Bar only';
+    }
+    return plates.join(' + ');
+  };
+
   const handleComplete = async () => {
     const updated = Array.from(new Set([...completed, id]));
     setCompleted(updated);
@@ -104,6 +113,9 @@ export default function WorkoutDetailScreen() {
                     <ThemedText type="defaultSemiBold">{set.weight} lbs</ThemedText>
                     <ThemedText style={styles.subtle}>
                       {set.reps} reps{set.amrap ? ' (AMRAP)' : ''}
+                    </ThemedText>
+                    <ThemedText style={styles.plateMath}>
+                      Plates per side: {formatPlateMath(set.weight)}
                     </ThemedText>
                   </View>
                 </View>
@@ -173,6 +185,10 @@ const styles = StyleSheet.create({
   },
   subtle: {
     color: Colors.dark.textMuted,
+  },
+  plateMath: {
+    color: Colors.dark.text,
+    fontSize: 13,
   },
   centered: {
     flex: 1,
