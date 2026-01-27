@@ -71,9 +71,9 @@ export function trainingMax(oneRepMax: number) {
   return base * 0.9;
 }
 
-export function calculateSetWeight(oneRepMax: number, percent: number) {
-  const tm = trainingMax(oneRepMax);
-  return roundToFive(tm * percent);
+export function calculateSetWeight(trainingMaxValue: number, percent: number) {
+  const base = Number.isFinite(trainingMaxValue) ? trainingMaxValue : 0;
+  return roundToFive(base * percent);
 }
 
 export function getWeekSets(week: number) {
@@ -94,5 +94,5 @@ export function parseWorkoutId(id: string | undefined) {
 }
 
 export function getTrainingMaxForLift(maxes: Maxes, lift: LiftKey) {
-  return trainingMax(maxes[lift] ?? 0);
+  return maxes[lift] ?? 0;
 }

@@ -9,6 +9,7 @@ import { Tabs } from 'expo-router';
 export default function TabLayout() {
   return (
     <Tabs
+      initialRouteName="workouts"
       screenOptions={{
         headerShown: false,
         tabBarButton: HapticTab,
@@ -32,7 +33,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Maxes',
+          title: 'Training Max',
           tabBarIcon: ({ color, focused }) => (
             <View style={[styles.tabItem, focused && styles.tabItemActive]}>
               <View style={[styles.indicator, focused && styles.indicatorActive]} />

@@ -19,11 +19,13 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { SafeAreaContainer } from '@/components/safe-area';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function WorkoutsScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [maxes, setMaxes] = useState<Maxes>(defaultMaxes);
   const [completed, setCompleted] = useState<string[]>([]);
   const [status, setStatus] = useState('');
@@ -105,6 +107,7 @@ export default function WorkoutsScreen() {
                       isDone={isDone}
                       weekNumber={week.week}
                       onToggleComplete={(shouldComplete) => updateCompletion(id, shouldComplete)}
+                      onPress={() => router.push(`/workout/${id}`)}
                     />
                   );
                 })}
@@ -134,6 +137,7 @@ type WorkoutCardProps = {
   isDone: boolean;
   onToggleComplete: (complete: boolean) => void;
   weekNumber: number;
+  onPress: () => void;
 };
 
 function WorkoutCard({
@@ -143,6 +147,7 @@ function WorkoutCard({
   isDone,
   onToggleComplete,
   weekNumber,
+  onPress,
 }: WorkoutCardProps) {
   const swipeRef = useRef<SwipeableMethods | null>(null);
 
@@ -176,47 +181,54 @@ function WorkoutCard({
         onSwipeableOpen={handleSwipeOpen}
         containerStyle={styles.swipeContainer}
         childrenContainerStyle={styles.swipeChild}>
-        <Card
-          style={[
-            styles.card,
-            isDone && {
-              borderColor: Colors.dark.tint,
-              backgroundColor: 'rgba(141, 163, 153, 0.1)',
-            },
-          ]}>
-          <View style={styles.cardHeader}>
-            <View>
-              <ThemedText type="label" style={{ color: Colors.dark.tint }}>
-                Week {weekNumber} • {schemeLabel}
-              </ThemedText>
-              <ThemedText
-                type="title"
-                style={isDone ? { textDecorationLine: 'line-through', color: Colors.dark.textMuted } : undefined}>
-                {liftLabel}
-              </ThemedText>
-            </View>
-            <Pressable
-              onPress={handleIconPress}
-              hitSlop={8}
-              accessibilityRole="button"
-              accessibilityLabel={isDone ? 'Mark as not complete' : 'Mark as complete'}>
-              <IconSymbol
-                name={isDone ? 'checkmark.circle.fill' : 'circle'}
-                size={28}
-                color={isDone ? Colors.dark.tint : Colors.dark.icon}
-              />
-            </Pressable>
-          </View>
+        <Pressable onPress={onPress} accessibilityRole="button">
+          {({ pressed }) => (
+            <Card
+              style={[
+                styles.card,
+                pressed && styles.cardPressed,
+                isDone && {
+                  borderColor: Colors.dark.tint,
+                  backgroundColor: 'rgba(141, 163, 153, 0.1)',
+                },
+              ]}>
+              <View style={styles.cardHeader}>
+                <View>
+                  <ThemedText type="label" style={{ color: Colors.dark.tint }}>
+                    Week {weekNumber} • {schemeLabel}
+                  </ThemedText>
+                  <ThemedText
+                    type="title"
+                    style={
+                      isDone ? { textDecorationLine: 'line-through', color: Colors.dark.textMuted } : undefined
+                    }>
+                    {liftLabel}
+                  </ThemedText>
+                </View>
+                <Pressable
+                  onPress={handleIconPress}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={isDone ? 'Mark as not complete' : 'Mark as complete'}>
+                  <IconSymbol
+                    name={isDone ? 'checkmark.circle.fill' : 'circle'}
+                    size={28}
+                    color={isDone ? Colors.dark.tint : Colors.dark.icon}
+                  />
+                </Pressable>
+              </View>
 
-          <View style={[styles.setsColumn, isDone && { opacity: 0.5 }]}>
-            {sets.map((set, idx) => (
-              <ThemedText key={`${set.reps}-${idx}`} style={styles.setLine}>
-                {set.weight} x {set.reps}
-                {set.amrap ? ' (AMRAP)' : ''}
-              </ThemedText>
-            ))}
-          </View>
-        </Card>
+              <View style={[styles.setsColumn, isDone && { opacity: 0.5 }]}>
+                {sets.map((set, idx) => (
+                  <ThemedText key={`${set.reps}-${idx}`} style={styles.setLine}>
+                    {set.weight} x {set.reps}
+                    {set.amrap ? ' (AMRAP)' : ''}
+                  </ThemedText>
+                ))}
+              </View>
+            </Card>
+          )}
+        </Pressable>
       </ReanimatedSwipeable>
     </View>
   );
@@ -309,6 +321,9 @@ const styles = StyleSheet.create({
   },
   card: {
     gap: 10,
+  },
+  cardPressed: {
+    opacity: 0.9,
   },
   cardHeader: {
     flexDirection: 'row',

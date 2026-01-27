@@ -19,6 +19,39 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+const barWeight = 45;
+const plateOptions = [45, 35, 25, 10, 5, 2.5];
+
+function formatPlate(plate: number) {
+  return Number.isInteger(plate) ? String(plate) : plate.toFixed(1).replace(/\.0$/, '');
+}
+
+function getPlateBreakdown(totalWeight: number) {
+  const perSide = Math.max(0, (totalWeight - barWeight) / 2);
+  let remaining = Math.max(0, Math.round(perSide * 100) / 100);
+  const plates: number[] = [];
+
+  for (const plate of plateOptions) {
+    while (remaining >= plate - 0.01) {
+      plates.push(plate);
+      remaining = Math.round((remaining - plate) * 100) / 100;
+    }
+  }
+
+  return { perSide, plates };
+}
+
+function getPlateMathLabel(totalWeight: number) {
+  if (totalWeight <= barWeight) {
+    return 'Per side: no plates';
+  }
+  const { plates } = getPlateBreakdown(totalWeight);
+  if (!plates.length) {
+    return 'Per side: no plates';
+  }
+  return `Per side: ${plates.map(formatPlate).join(' + ')}`;
+}
+
 export default function WorkoutDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -105,6 +138,9 @@ export default function WorkoutDetailScreen() {
                     <ThemedText style={styles.subtle}>
                       {set.reps} reps{set.amrap ? ' (AMRAP)' : ''}
                     </ThemedText>
+                    <ThemedText style={styles.plateMath}>
+                      {getPlateMathLabel(set.weight)}
+                    </ThemedText>
                   </View>
                 </View>
               ))}
@@ -173,6 +209,10 @@ const styles = StyleSheet.create({
   },
   subtle: {
     color: Colors.dark.textMuted,
+  },
+  plateMath: {
+    color: Colors.dark.textMuted,
+    fontSize: 12,
   },
   centered: {
     flex: 1,
