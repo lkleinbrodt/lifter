@@ -1,20 +1,63 @@
 import type { LiftKey, Maxes } from './storage';
 
 export type WorkoutSet = { percent: number; reps: string; amrap?: boolean };
-
 export type WorkoutWeek = { week: number; label: string; sets: WorkoutSet[] };
 
-const liftLabels: Record<LiftKey, string> = {
-  squat: 'Squat',
-  bench: 'Bench Press',
-  deadlift: 'Deadlift',
+export type WorkoutDayKey = LiftKey | 'weighted-pullups';
+
+type WorkoutDay = {
+  key: WorkoutDayKey;
+  label: string;
+  mainLiftLabel: string;
+  accessoryArchetypes: string[];
+  is531: boolean;
 };
 
-export const lifts: { key: LiftKey; label: string }[] = [
-  { key: 'squat', label: liftLabels.squat },
-  { key: 'bench', label: liftLabels.bench },
-  { key: 'deadlift', label: liftLabels.deadlift },
+const workoutDayConfig: Record<WorkoutDayKey, WorkoutDay> = {
+  squat: {
+    key: 'squat',
+    label: 'Squat',
+    mainLiftLabel: 'Squat',
+    accessoryArchetypes: ['Vertical Pull', 'Vertical Push', 'Core (Anti-extension)'],
+    is531: true,
+  },
+  bench: {
+    key: 'bench',
+    label: 'Bench Press',
+    mainLiftLabel: 'Bench Press',
+    accessoryArchetypes: [
+      'ATG Split Squat',
+      'Horizontal Row',
+      'Secondary Hinge (low-back friendly)',
+    ],
+    is531: true,
+  },
+  deadlift: {
+    key: 'deadlift',
+    label: 'Deadlift',
+    mainLiftLabel: 'Deadlift',
+    accessoryArchetypes: ['Horizontal Push', 'Vertical Press / Shoulder Rehab', 'Core (Anti-rotation)'],
+    is531: true,
+  },
+  'weighted-pullups': {
+    key: 'weighted-pullups',
+    label: 'Weighted Pull-Ups',
+    mainLiftLabel: 'Weighted Pull-Ups',
+    accessoryArchetypes: ['Row (supported if needed)', 'Unilateral Lower', 'Core or Mobility'],
+    is531: false,
+  },
+};
+
+export const workoutDays: WorkoutDay[] = [
+  workoutDayConfig.squat,
+  workoutDayConfig.bench,
+  workoutDayConfig.deadlift,
+  workoutDayConfig['weighted-pullups'],
 ];
+
+export const lifts: { key: LiftKey; label: string }[] = workoutDays
+  .filter((day): day is WorkoutDay & { key: LiftKey } => day.is531)
+  .map((day) => ({ key: day.key, label: day.label }));
 
 export const workoutWeeks: WorkoutWeek[] = [
   {
@@ -55,11 +98,23 @@ export const workoutWeeks: WorkoutWeek[] = [
   },
 ];
 
-const validLift = (value: string | undefined): value is LiftKey =>
-  value === 'squat' || value === 'bench' || value === 'deadlift';
+const validWorkoutDay = (value: string | undefined): value is WorkoutDayKey =>
+  value === 'squat' || value === 'bench' || value === 'deadlift' || value === 'weighted-pullups';
 
 export function getLiftLabel(key: LiftKey) {
-  return liftLabels[key];
+  return workoutDayConfig[key].label;
+}
+
+export function getWorkoutDayLabel(key: WorkoutDayKey) {
+  return workoutDayConfig[key].label;
+}
+
+export function getWorkoutDay(key: WorkoutDayKey) {
+  return workoutDayConfig[key];
+}
+
+export function is531WorkoutDay(key: WorkoutDayKey): key is LiftKey {
+  return workoutDayConfig[key].is531;
 }
 
 export function roundToFive(weight: number) {
@@ -80,17 +135,18 @@ export function getWeekSets(week: number) {
   return workoutWeeks.find((item) => item.week === week)?.sets ?? [];
 }
 
-export function workoutId(week: number, lift: LiftKey) {
-  return `${week}-${lift}`;
+export function workoutId(week: number, day: WorkoutDayKey) {
+  return `${week}-${day}`;
 }
 
 export function parseWorkoutId(id: string | undefined) {
   if (!id) return null;
-  const [weekPart, liftPart] = id.split('-');
+  const [weekPart, ...dayParts] = id.split('-');
+  const day = dayParts.join('-');
   const week = Number(weekPart);
   if (!Number.isInteger(week) || week < 1 || week > 4) return null;
-  if (!validLift(liftPart)) return null;
-  return { week, lift: liftPart as LiftKey };
+  if (!validWorkoutDay(day)) return null;
+  return { week, lift: day as WorkoutDayKey };
 }
 
 export function getTrainingMaxForLift(maxes: Maxes, lift: LiftKey) {

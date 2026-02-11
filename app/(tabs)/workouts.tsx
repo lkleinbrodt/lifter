@@ -10,7 +10,7 @@ import Reanimated, {
   useAnimatedStyle,
 } from 'react-native-reanimated';
 import ReanimatedSwipeable, { SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
-import { calculateSetWeight, lifts, workoutId, workoutWeeks } from '@/lib/workout-plan';
+import { calculateSetWeight, getWeekSets, is531WorkoutDay, workoutDays, workoutId, workoutWeeks } from '@/lib/workout-plan';
 
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -89,19 +89,24 @@ export default function WorkoutsScreen() {
                 Week {week.week}
               </ThemedText>
               <View style={styles.liftsRow}>
-                {lifts.map((lift) => {
-                  const id = workoutId(week.week, lift.key);
+                {workoutDays.map((day) => {
+                  const dayKey = day.key;
+                  const id = workoutId(week.week, dayKey);
                   const isDone = completed.includes(id);
-                  const sets = week.sets.map((set) => ({
-                    ...set,
-                    weight: calculateSetWeight(maxes[lift.key] ?? 0, set.percent),
-                  }));
-                  const schemeLabel = `${week.label}${week.sets.some((set) => set.amrap) ? '+' : ''}`;
+                  const sets = is531WorkoutDay(dayKey)
+                    ? getWeekSets(week.week).map((set) => ({
+                        ...set,
+                        weight: calculateSetWeight(maxes[dayKey] ?? 0, set.percent),
+                      }))
+                    : Array.from({ length: 5 }, () => ({ reps: '5' }));
+                  const schemeLabel = is531WorkoutDay(dayKey)
+                    ? `${week.label}${week.sets.some((set) => set.amrap) ? '+' : ''}`
+                    : '5x5';
                   return (
                     <WorkoutCard
-                      key={lift.key}
+                      key={day.key}
                       id={id}
-                      liftLabel={lift.label}
+                      liftLabel={day.label}
                       schemeLabel={schemeLabel}
                       sets={sets}
                       isDone={isDone}
@@ -124,7 +129,7 @@ export default function WorkoutsScreen() {
 }
 
 type CardSet = {
-  weight: number;
+  weight?: number;
   reps: string;
   amrap?: boolean;
 };
@@ -221,8 +226,9 @@ function WorkoutCard({
               <View style={[styles.setsColumn, isDone && { opacity: 0.5 }]}>
                 {sets.map((set, idx) => (
                   <ThemedText key={`${set.reps}-${idx}`} style={styles.setLine}>
-                    {set.weight} x {set.reps}
-                    {set.amrap ? ' (AMRAP)' : ''}
+                    {typeof set.weight === 'number'
+                      ? `${set.weight} x ${set.reps}${set.amrap ? ' (AMRAP)' : ''}`
+                      : `Set ${idx + 1} • ${set.reps} reps`}
                   </ThemedText>
                 ))}
               </View>

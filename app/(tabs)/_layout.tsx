@@ -6,6 +6,10 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import React from 'react';
 import { Tabs } from 'expo-router';
 
+export const unstable_settings = {
+  initialRouteName: 'workouts',
+};
+
 export default function TabLayout() {
   return (
     <Tabs

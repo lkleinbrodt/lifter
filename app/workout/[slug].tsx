@@ -5,9 +5,11 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   calculateSetWeight,
   calculatePlateMath,
-  getLiftLabel,
   getTrainingMaxForLift,
   getWeekSets,
+  getWorkoutDay,
+  getWorkoutDayLabel,
+  is531WorkoutDay,
   parseWorkoutId,
   workoutId,
 } from '@/lib/workout-plan';
@@ -49,13 +51,16 @@ export default function WorkoutDetailScreen() {
   }
 
   const { week, lift } = parsed;
+  const day = getWorkoutDay(lift);
   const id = workoutId(week, lift);
   const isDone = completed.includes(id);
-  const tm = Math.round(getTrainingMaxForLift(maxes, lift));
-  const sets = getWeekSets(week).map((set) => ({
-    ...set,
-    weight: calculateSetWeight(maxes[lift] ?? 0, set.percent),
-  }));
+  const tm = is531WorkoutDay(lift) ? Math.round(getTrainingMaxForLift(maxes, lift)) : null;
+  const sets: { reps: string; amrap?: boolean; weight?: number }[] = is531WorkoutDay(lift)
+    ? getWeekSets(week).map((set) => ({
+        ...set,
+        weight: calculateSetWeight(maxes[lift] ?? 0, set.percent),
+      }))
+    : Array.from({ length: 5 }, () => ({ reps: '5' }));
 
   const formatPlateMath = (weight: number) => {
     const plates = calculatePlateMath(weight);
@@ -72,7 +77,6 @@ export default function WorkoutDetailScreen() {
     router.back();
   };
 
-
   if (loading) {
     return (
       <ThemedView style={styles.centered}>
@@ -85,31 +89,54 @@ export default function WorkoutDetailScreen() {
     <>
       <Stack.Screen
         options={{
-          title: `Week ${week} - ${getLiftLabel(lift)}`,
+          title: `Week ${week} - ${getWorkoutDayLabel(lift)}`,
         }}
       />
       <SafeAreaContainer edges={['top', 'left', 'right', 'bottom']}>
         <ThemedView style={styles.container}>
-          <ScrollView
-            contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}>
-            <ThemedText type="title">{`Week ${week} - ${getLiftLabel(lift)}`}</ThemedText>
-            <ThemedText style={styles.subtle}>Training Max: {tm} lbs</ThemedText>
+          <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}>
+            <ThemedText type="title">{`Week ${week} - ${getWorkoutDayLabel(lift)}`}</ThemedText>
+            {day.is531 ? (
+              <ThemedText style={styles.subtle}>Training Max: {tm} lbs</ThemedText>
+            ) : (
+              <View style={styles.placeholderRow}>
+                <ThemedText style={styles.subtle}>1RM: —</ThemedText>
+                <ThemedText style={styles.subtle}>Prescribed Weight: —</ThemedText>
+              </View>
+            )}
 
             <Card style={styles.card}>
+              <ThemedText type="defaultSemiBold" style={styles.sectionLabel}>
+                Main Lift — {day.mainLiftLabel}
+              </ThemedText>
               {sets.map((set, index) => (
                 <View key={`${set.reps}-${index}`} style={styles.row}>
                   <View style={[styles.bullet, isDone && styles.bulletDone]} />
                   <View style={styles.rowContent}>
                     <ThemedText type="defaultSemiBold">
-                      {set.weight} lbs for {set.reps} reps{set.amrap ? ' (AMRAP)' : ''}
+                      {typeof set.weight === 'number'
+                        ? `${set.weight} lbs for ${set.reps} reps${set.amrap ? ' (AMRAP)' : ''}`
+                        : `Set ${index + 1}: ${set.reps} reps`}
                     </ThemedText>
-                    <ThemedText style={styles.plateMath}>
-                      {formatPlateMath(set.weight)}
-                    </ThemedText>
+                    {typeof set.weight === 'number' ? (
+                      <ThemedText style={styles.plateMath}>{formatPlateMath(set.weight)}</ThemedText>
+                    ) : null}
                   </View>
                 </View>
               ))}
             </Card>
+
+            <View style={styles.accessoryBlock}>
+              <ThemedText type="subtitle" style={styles.accessoryTitle}>
+                Accessory Framework
+              </ThemedText>
+              {day.accessoryArchetypes.map((archetype) => (
+                <Card key={archetype} style={styles.accessoryCard}>
+                  <ThemedText type="defaultSemiBold">{archetype}</ThemedText>
+                  <ThemedText style={styles.subtle}>Accessory archetype</ThemedText>
+                </Card>
+              ))}
+            </View>
 
             <Button
               title={isDone ? 'Session Completed' : 'Complete Session'}
@@ -176,5 +203,28 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  sectionLabel: {
+    color: Colors.dark.tint,
+    marginBottom: 2,
+  },
+  accessoryBlock: {
+    gap: 10,
+  },
+  accessoryTitle: {
+    opacity: 0.9,
+  },
+  accessoryCard: {
+    gap: 6,
+  },
+  placeholderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: Colors.dark.surface,
   },
 });
