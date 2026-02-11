@@ -93,6 +93,7 @@ export default function WorkoutsScreen() {
                   const dayKey = day.key;
                   const id = workoutId(week.week, dayKey);
                   const isDone = completed.includes(id);
+                  const isWeightedPullups = dayKey === 'weighted-pullups';
                   const sets = is531WorkoutDay(dayKey)
                     ? getWeekSets(week.week).map((set) => ({
                         ...set,
@@ -111,6 +112,7 @@ export default function WorkoutsScreen() {
                       sets={sets}
                       isDone={isDone}
                       weekNumber={week.week}
+                      pullupWeight={isWeightedPullups ? (maxes.weightedPullupWeight ?? 0) : undefined}
                       onToggleComplete={(shouldComplete) => updateCompletion(id, shouldComplete)}
                       onPress={() => router.push(`/workout/${id}`)}
                     />
@@ -140,8 +142,9 @@ type WorkoutCardProps = {
   schemeLabel: string;
   sets: CardSet[];
   isDone: boolean;
-  onToggleComplete: (complete: boolean) => void;
   weekNumber: number;
+  pullupWeight?: number;
+  onToggleComplete: (complete: boolean) => void;
   onPress: () => void;
 };
 
@@ -150,8 +153,9 @@ function WorkoutCard({
   schemeLabel,
   sets,
   isDone,
-  onToggleComplete,
   weekNumber,
+  pullupWeight,
+  onToggleComplete,
   onPress,
 }: WorkoutCardProps) {
   const swipeRef = useRef<SwipeableMethods | null>(null);
@@ -224,13 +228,19 @@ function WorkoutCard({
               </View>
 
               <View style={[styles.setsColumn, isDone && { opacity: 0.5 }]}>
-                {sets.map((set, idx) => (
-                  <ThemedText key={`${set.reps}-${idx}`} style={styles.setLine}>
-                    {typeof set.weight === 'number'
-                      ? `${set.weight} x ${set.reps}${set.amrap ? ' (AMRAP)' : ''}`
-                      : `Set ${idx + 1} • ${set.reps} reps`}
+                {pullupWeight !== undefined ? (
+                  <ThemedText style={styles.setLine}>
+                    5x5{pullupWeight ? ` @ ${pullupWeight} lbs` : ''}
                   </ThemedText>
-                ))}
+                ) : (
+                  sets.map((set, idx) => (
+                    <ThemedText key={`${set.reps}-${idx}`} style={styles.setLine}>
+                      {typeof set.weight === 'number'
+                        ? `${set.weight} x ${set.reps}${set.amrap ? ' (AMRAP)' : ''}`
+                        : `Set ${idx + 1} • ${set.reps} reps`}
+                    </ThemedText>
+                  ))
+                )}
               </View>
             </Card>
           )}

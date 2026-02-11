@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type LiftKey = 'squat' | 'bench' | 'deadlift';
 
-export type Maxes = Record<LiftKey, number>;
+export type Maxes = Record<LiftKey, number> & { weightedPullupWeight: number };
 
 const MAXES_KEY = '@user_maxes';
 const COMPLETED_KEY = '@completed_workouts';
@@ -11,6 +11,7 @@ export const defaultMaxes: Maxes = {
   squat: 0,
   bench: 0,
   deadlift: 0,
+  weightedPullupWeight: 0,
 };
 
 const liftKeys: LiftKey[] = ['squat', 'bench', 'deadlift'];
@@ -30,6 +31,7 @@ function normalizeMaxes(value: unknown): Maxes {
     // @ts-expect-error dynamic lookup
     result[key] = toNumber(value[key]);
   }
+  result.weightedPullupWeight = toNumber((value as Record<string, unknown>).weightedPullupWeight);
 
   return result;
 }

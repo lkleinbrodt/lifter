@@ -1,10 +1,10 @@
-import { ScrollView, StyleSheet, View } from 'react-native';
 import { Maxes, defaultMaxes, loadCompleted, loadMaxes, saveCompleted } from '@/lib/storage';
 import React, { useEffect, useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import {
-  calculateSetWeight,
   calculatePlateMath,
+  calculateSetWeight,
   getTrainingMaxForLift,
   getWeekSets,
   getWorkoutDay,
@@ -55,6 +55,8 @@ export default function WorkoutDetailScreen() {
   const id = workoutId(week, lift);
   const isDone = completed.includes(id);
   const tm = is531WorkoutDay(lift) ? Math.round(getTrainingMaxForLift(maxes, lift)) : null;
+  const isWeightedPullups = lift === 'weighted-pullups';
+  const pullupWeight = maxes.weightedPullupWeight ?? 0;
   const sets: { reps: string; amrap?: boolean; weight?: number }[] = is531WorkoutDay(lift)
     ? getWeekSets(week).map((set) => ({
         ...set,
@@ -98,6 +100,10 @@ export default function WorkoutDetailScreen() {
             <ThemedText type="title">{`Week ${week} - ${getWorkoutDayLabel(lift)}`}</ThemedText>
             {day.is531 ? (
               <ThemedText style={styles.subtle}>Training Max: {tm} lbs</ThemedText>
+            ) : isWeightedPullups ? (
+              <ThemedText style={styles.subtle}>
+                Weight: {pullupWeight ? `${pullupWeight} lbs` : '— (set on main page)'}
+              </ThemedText>
             ) : (
               <View style={styles.placeholderRow}>
                 <ThemedText style={styles.subtle}>1RM: —</ThemedText>
@@ -109,32 +115,49 @@ export default function WorkoutDetailScreen() {
               <ThemedText type="defaultSemiBold" style={styles.sectionLabel}>
                 Main Lift — {day.mainLiftLabel}
               </ThemedText>
-              {sets.map((set, index) => (
-                <View key={`${set.reps}-${index}`} style={styles.row}>
+              {isWeightedPullups ? (
+                <View style={styles.row}>
                   <View style={[styles.bullet, isDone && styles.bulletDone]} />
                   <View style={styles.rowContent}>
                     <ThemedText type="defaultSemiBold">
-                      {typeof set.weight === 'number'
-                        ? `${set.weight} lbs for ${set.reps} reps${set.amrap ? ' (AMRAP)' : ''}`
-                        : `Set ${index + 1}: ${set.reps} reps`}
+                      5x5{pullupWeight ? ` @ ${pullupWeight} lbs` : ''}
                     </ThemedText>
-                    {typeof set.weight === 'number' ? (
-                      <ThemedText style={styles.plateMath}>{formatPlateMath(set.weight)}</ThemedText>
-                    ) : null}
                   </View>
                 </View>
-              ))}
+              ) : (
+                sets.map((set, index) => (
+                  <View key={`${set.reps}-${index}`} style={styles.row}>
+                    <View style={[styles.bullet, isDone && styles.bulletDone]} />
+                    <View style={styles.rowContent}>
+                      <ThemedText type="defaultSemiBold">
+                        {typeof set.weight === 'number'
+                          ? `${set.weight} lbs for ${set.reps} reps${set.amrap ? ' (AMRAP)' : ''}`
+                          : `Set ${index + 1}: ${set.reps} reps`}
+                      </ThemedText>
+                      {typeof set.weight === 'number' ? (
+                        <ThemedText style={styles.plateMath}>{formatPlateMath(set.weight)}</ThemedText>
+                      ) : null}
+                    </View>
+                  </View>
+                ))
+              )}
             </Card>
 
             <View style={styles.accessoryBlock}>
               <ThemedText type="subtitle" style={styles.accessoryTitle}>
-                Accessory Framework
+                Accessories
               </ThemedText>
               {day.accessoryArchetypes.map((archetype) => (
-                <Card key={archetype} style={styles.accessoryCard}>
-                  <ThemedText type="defaultSemiBold">{archetype}</ThemedText>
-                  <ThemedText style={styles.subtle}>Accessory archetype</ThemedText>
-                </Card>
+                <Pressable
+                  key={archetype}
+                  onPress={() => router.push(`/archetype/${encodeURIComponent(archetype)}`)}
+                  accessibilityRole="button">
+                  {({ pressed }) => (
+                    <Card style={[styles.accessoryCard, pressed && styles.accessoryCardPressed]}>
+                      <ThemedText type="defaultSemiBold">{archetype}</ThemedText>
+                    </Card>
+                  )}
+                </Pressable>
               ))}
             </View>
 
@@ -216,6 +239,9 @@ const styles = StyleSheet.create({
   },
   accessoryCard: {
     gap: 6,
+  },
+  accessoryCardPressed: {
+    opacity: 0.7,
   },
   placeholderRow: {
     flexDirection: 'row',

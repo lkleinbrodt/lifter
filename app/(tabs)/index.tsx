@@ -132,6 +132,32 @@ export default function MaxesScreen() {
                 );
               })}
 
+              <Card style={styles.card}>
+                <View style={styles.inputContainer}>
+                  <Input
+                    label="Weighted Pull-Ups (5x5 weight)"
+                    suffix="lbs"
+                    value={maxes.weightedPullupWeight ? String(maxes.weightedPullupWeight) : ''}
+                    onChangeText={(text) => {
+                      const numeric = Number(text.replace(/[^0-9]/g, ''));
+                      setMaxes((prev) => ({
+                        ...prev,
+                        weightedPullupWeight: Number.isFinite(numeric) ? numeric : 0,
+                      }));
+                    }}
+                    onBlur={() => {
+                      const next = { ...maxes };
+                      if (!Number.isFinite(next.weightedPullupWeight)) {
+                        next.weightedPullupWeight = 0;
+                      }
+                      void persist(next);
+                    }}
+                    keyboardType="number-pad"
+                    inputMode="numeric"
+                  />
+                </View>
+              </Card>
+
               {status ? <ThemedText style={styles.status}>{status}</ThemedText> : null}
             </ScrollView>
 
