@@ -28,6 +28,7 @@ export default function WorkoutsScreen() {
   const router = useRouter();
   const [maxes, setMaxes] = useState<Maxes>(defaultMaxes);
   const [completed, setCompleted] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('');
 
   useFocusEffect(
@@ -38,6 +39,7 @@ export default function WorkoutsScreen() {
         if (active) {
           setMaxes(storedMaxes);
           setCompleted(storedCompleted);
+          setLoading(false);
         }
       };
       load();
@@ -76,6 +78,14 @@ export default function WorkoutsScreen() {
       },
     ]);
   }, []);
+
+  if (loading) {
+    return (
+      <ThemedView style={styles.centered}>
+        <ThemedText>Loading workouts…</ThemedText>
+      </ThemedView>
+    );
+  }
 
   return (
     <SafeAreaContainer edges={['top', 'right', 'left']}>
@@ -350,9 +360,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  meta: {
-    color: Colors.dark.textMuted,
-  },
   setsColumn: {
     marginTop: 10,
     gap: 6,
@@ -366,5 +373,10 @@ const styles = StyleSheet.create({
   status: {
     textAlign: 'center',
     color: Colors.dark.textMuted,
+  },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
