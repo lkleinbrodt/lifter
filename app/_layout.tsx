@@ -33,6 +33,19 @@ export default function RootLayout() {
             headerBackTitle: 'Back',
           }}
         />
+        <Stack.Screen
+          name="archetype/[name]"
+          options={{
+            headerStyle: {
+              backgroundColor: Colors.dark.surface,
+            },
+            headerTintColor: Colors.dark.text,
+            headerTitleStyle: {
+              color: Colors.dark.text,
+            },
+            headerBackTitle: 'Back',
+          }}
+        />
       </Stack>
         <StatusBar style="light" />
       </ThemeProvider>

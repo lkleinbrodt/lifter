@@ -54,7 +54,8 @@ export async function loadCompleted(): Promise<string[]> {
   try {
     const raw = await AsyncStorage.getItem(COMPLETED_KEY);
     if (!raw) return [];
-    const parsed = Array.isArray(JSON.parse(raw)) ? JSON.parse(raw) : [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
     return parsed.filter((item: unknown): item is string => typeof item === 'string');
   } catch {
     return [];

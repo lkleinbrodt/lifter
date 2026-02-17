@@ -49,13 +49,16 @@ export default function WorkoutsScreen() {
 
   const updateCompletion = useCallback(
     async (id: string, shouldComplete: boolean) => {
-      const next = shouldComplete
-        ? Array.from(new Set([...completed, id]))
-        : completed.filter((item) => item !== id);
-      setCompleted(next);
+      let next: string[] = [];
+      setCompleted((prev) => {
+        next = shouldComplete
+          ? Array.from(new Set([...prev, id]))
+          : prev.filter((item) => item !== id);
+        return next;
+      });
       await saveCompleted(next);
     },
-    [completed],
+    [],
   );
 
   const handleResetCycle = useCallback(() => {
