@@ -1,7 +1,8 @@
 import { Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, TouchableWithoutFeedback, View } from 'react-native';
 import { LiftKey, Maxes, defaultMaxes, loadMaxes, saveMaxes } from '@/lib/storage';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { getLiftLabel, trainingMax } from '@/lib/workout-plan';
+import { useFocusEffect } from '@react-navigation/native';
 
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -24,14 +25,22 @@ export default function MaxesScreen() {
   const [selectedLift, setSelectedLift] = useState<LiftKey | null>(null);
   const [oneRepMaxInput, setOneRepMaxInput] = useState('');
 
-  useEffect(() => {
-    const load = async () => {
-      const stored = await loadMaxes();
-      setMaxes(stored);
-      setLoading(false);
-    };
-    load();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      const load = async () => {
+        const stored = await loadMaxes();
+        if (active) {
+          setMaxes(stored);
+          setLoading(false);
+        }
+      };
+      load();
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
 
   const persist = useCallback(async (next: Maxes) => {
     setStatus('Saving…');
