@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 
 import { Alert, GestureResponderEvent, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Maxes, clearCompleted, defaultMaxes, loadCompleted, loadMaxes, saveCompleted } from '@/lib/storage';
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Reanimated, {
   Extrapolation,
   SharedValue,
@@ -29,6 +29,13 @@ export default function WorkoutsScreen() {
   const [maxes, setMaxes] = useState<Maxes>(defaultMaxes);
   const [completed, setCompleted] = useState<string[]>([]);
   const [status, setStatus] = useState('');
+  // Keep a ref in sync with completed so updateCompletion always reads the
+  // current value without a stale closure and without recreating the callback
+  // (which would cause all WorkoutCard children to re-render).
+  const completedRef = useRef<string[]>([]);
+  useEffect(() => {
+    completedRef.current = completed;
+  }, [completed]);
 
   useFocusEffect(
     useCallback(() => {
@@ -38,6 +45,7 @@ export default function WorkoutsScreen() {
         if (active) {
           setMaxes(storedMaxes);
           setCompleted(storedCompleted);
+          completedRef.current = storedCompleted;
         }
       };
       load();
@@ -49,13 +57,13 @@ export default function WorkoutsScreen() {
 
   const updateCompletion = useCallback(
     async (id: string, shouldComplete: boolean) => {
-      let next: string[] = [];
-      setCompleted((prev) => {
-        next = shouldComplete
-          ? Array.from(new Set([...prev, id]))
-          : prev.filter((item) => item !== id);
-        return next;
-      });
+      const prev = completedRef.current;
+      const next = shouldComplete
+        ? Array.from(new Set([...prev, id]))
+        : prev.filter((item) => item !== id);
+      // Update ref immediately so back-to-back calls don't race.
+      completedRef.current = next;
+      setCompleted(next);
       await saveCompleted(next);
     },
     [],
@@ -69,6 +77,7 @@ export default function WorkoutsScreen() {
         style: 'destructive',
         onPress: async () => {
           await clearCompleted();
+          completedRef.current = [];
           setCompleted([]);
           setStatus('Cycle reset');
           setTimeout(() => setStatus(''), 1500);
