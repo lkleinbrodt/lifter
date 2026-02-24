@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 
 import { Alert, GestureResponderEvent, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Maxes, clearCompleted, defaultMaxes, loadCompleted, loadMaxes, saveCompleted } from '@/lib/storage';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import Reanimated, {
   Extrapolation,
   SharedValue,
@@ -29,13 +29,10 @@ export default function WorkoutsScreen() {
   const [maxes, setMaxes] = useState<Maxes>(defaultMaxes);
   const [completed, setCompleted] = useState<string[]>([]);
   const [status, setStatus] = useState('');
-  // Keep a ref in sync with completed so updateCompletion always reads the
-  // current value without a stale closure and without recreating the callback
-  // (which would cause all WorkoutCard children to re-render).
+  // Ref mirrors completed so updateCompletion always reads the current value
+  // without being recreated on every state change (which would re-render all cards).
+  // Every mutation site updates both state and ref immediately.
   const completedRef = useRef<string[]>([]);
-  useEffect(() => {
-    completedRef.current = completed;
-  }, [completed]);
 
   useFocusEffect(
     useCallback(() => {
@@ -86,6 +83,8 @@ export default function WorkoutsScreen() {
     ]);
   }, []);
 
+  const maxesUnset = maxes.squat === 0 && maxes.bench === 0 && maxes.deadlift === 0;
+
   return (
     <SafeAreaContainer edges={['top', 'right', 'left']}>
       <ThemedView style={styles.container}>
@@ -95,6 +94,14 @@ export default function WorkoutsScreen() {
           <ThemedText type="display">
             Workouts
           </ThemedText>
+          {maxesUnset ? (
+            <Card style={styles.emptyCard}>
+              <ThemedText type="defaultSemiBold">Set your training maxes first</ThemedText>
+              <ThemedText style={styles.emptySubtext}>
+                Go to the Maxes tab to enter your training maxes. Weights will appear here once they're set.
+              </ThemedText>
+            </Card>
+          ) : null}
           {workoutWeeks.map((week) => (
             <View key={week.week} style={styles.weekBlock}>
               <ThemedText type="subtitle" style={styles.weekHeader}>
@@ -371,6 +378,15 @@ const styles = StyleSheet.create({
   },
   resetButton: {
     marginTop: 8,
+  },
+  emptyCard: {
+    gap: 8,
+    borderColor: Colors.dark.tint,
+    borderWidth: 1,
+  },
+  emptySubtext: {
+    color: Colors.dark.textMuted,
+    fontSize: 14,
   },
   status: {
     textAlign: 'center',

@@ -117,6 +117,13 @@ export function is531WorkoutDay(key: WorkoutDayKey): key is LiftKey {
   return workoutDayConfig[key].is531;
 }
 
+// Standard 5/3/1 warmup: 40/50/60% of training max, 5 reps each
+export const warmupSets: WorkoutSet[] = [
+  { percent: 0.4, reps: '5' },
+  { percent: 0.5, reps: '5' },
+  { percent: 0.6, reps: '5' },
+];
+
 export function roundToFive(weight: number) {
   return Math.round(weight / 5) * 5;
 }
