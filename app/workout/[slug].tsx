@@ -11,6 +11,7 @@ import {
   getWorkoutDayLabel,
   is531WorkoutDay,
   parseWorkoutId,
+  warmupSets,
   workoutId,
 } from '@/lib/workout-plan';
 
@@ -110,6 +111,28 @@ export default function WorkoutDetailScreen() {
                 <ThemedText style={styles.subtle}>Prescribed Weight: —</ThemedText>
               </View>
             )}
+
+            {day.is531 && tm !== null && tm > 0 ? (
+              <Card style={styles.card}>
+                <ThemedText type="defaultSemiBold" style={styles.sectionLabel}>
+                  Warmup
+                </ThemedText>
+                {warmupSets.map((set, index) => {
+                  const weight = calculateSetWeight(tm, set.percent);
+                  return (
+                    <View key={index} style={styles.row}>
+                      <View style={styles.bullet} />
+                      <View style={styles.rowContent}>
+                        <ThemedText type="defaultSemiBold">
+                          {`${weight} lbs × ${set.reps} reps`}
+                        </ThemedText>
+                        <ThemedText style={styles.plateMath}>{formatPlateMath(weight)}</ThemedText>
+                      </View>
+                    </View>
+                  );
+                })}
+              </Card>
+            ) : null}
 
             <Card style={styles.card}>
               <ThemedText type="defaultSemiBold" style={styles.sectionLabel}>

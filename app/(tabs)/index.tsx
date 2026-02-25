@@ -15,12 +15,14 @@ import { ThemedView } from '@/components/themed-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const liftOrder: LiftKey[] = ['squat', 'bench', 'deadlift'];
+const MAX_WEIGHT = 1500;
 
 export default function MaxesScreen() {
   const insets = useSafeAreaInsets();
   const [maxes, setMaxes] = useState<Maxes>(defaultMaxes);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('');
+  const [errors, setErrors] = useState<Partial<Record<LiftKey | 'weightedPullupWeight', string>>>({});
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedLift, setSelectedLift] = useState<LiftKey | null>(null);
   const [oneRepMaxInput, setOneRepMaxInput] = useState('');
@@ -51,7 +53,13 @@ export default function MaxesScreen() {
 
   const handleChange = useCallback((key: LiftKey, text: string) => {
     const numeric = Number(text.replace(/[^0-9]/g, ''));
-    setMaxes((prev) => ({ ...prev, [key]: Number.isFinite(numeric) ? numeric : 0 }));
+    const value = Number.isFinite(numeric) ? numeric : 0;
+    setMaxes((prev) => ({ ...prev, [key]: value }));
+    if (value > MAX_WEIGHT) {
+      setErrors((prev) => ({ ...prev, [key]: `Maximum is ${MAX_WEIGHT} lbs` }));
+    } else {
+      setErrors((prev) => ({ ...prev, [key]: undefined }));
+    }
   }, []);
 
   const handleOpenModal = useCallback((lift: LiftKey) => {
@@ -83,7 +91,11 @@ export default function MaxesScreen() {
       const next = { ...maxes };
       if (!Number.isFinite(next[key])) {
         next[key] = 0;
+      } else if (next[key] > MAX_WEIGHT) {
+        next[key] = MAX_WEIGHT;
+        setErrors((prev) => ({ ...prev, [key]: undefined }));
       }
+      setMaxes(next);
       void persist(next);
     },
     [maxes, persist],
@@ -127,6 +139,9 @@ export default function MaxesScreen() {
                           keyboardType="number-pad"
                           inputMode="numeric"
                         />
+                        {errors[lift] ? (
+                          <ThemedText style={styles.errorText}>{errors[lift]}</ThemedText>
+                        ) : null}
                       </View>
                       <Pressable
                         onPress={() => handleOpenModal(lift)}
@@ -149,21 +164,31 @@ export default function MaxesScreen() {
                     value={maxes.weightedPullupWeight ? String(maxes.weightedPullupWeight) : ''}
                     onChangeText={(text) => {
                       const numeric = Number(text.replace(/[^0-9]/g, ''));
-                      setMaxes((prev) => ({
-                        ...prev,
-                        weightedPullupWeight: Number.isFinite(numeric) ? numeric : 0,
-                      }));
+                      const value = Number.isFinite(numeric) ? numeric : 0;
+                      setMaxes((prev) => ({ ...prev, weightedPullupWeight: value }));
+                      if (value > MAX_WEIGHT) {
+                        setErrors((prev) => ({ ...prev, weightedPullupWeight: `Maximum is ${MAX_WEIGHT} lbs` }));
+                      } else {
+                        setErrors((prev) => ({ ...prev, weightedPullupWeight: undefined }));
+                      }
                     }}
                     onBlur={() => {
                       const next = { ...maxes };
                       if (!Number.isFinite(next.weightedPullupWeight)) {
                         next.weightedPullupWeight = 0;
+                      } else if (next.weightedPullupWeight > MAX_WEIGHT) {
+                        next.weightedPullupWeight = MAX_WEIGHT;
+                        setErrors((prev) => ({ ...prev, weightedPullupWeight: undefined }));
                       }
+                      setMaxes(next);
                       void persist(next);
                     }}
                     keyboardType="number-pad"
                     inputMode="numeric"
                   />
+                  {errors.weightedPullupWeight ? (
+                    <ThemedText style={styles.errorText}>{errors.weightedPullupWeight}</ThemedText>
+                  ) : null}
                 </View>
               </Card>
 
@@ -284,6 +309,12 @@ const styles = StyleSheet.create({
   status: {
     textAlign: 'center',
     color: Colors.dark.textMuted,
+  },
+  errorText: {
+    color: '#CF6679',
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 4,
   },
   centered: {
     flex: 1,
