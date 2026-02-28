@@ -1,19 +1,41 @@
 import { Colors, Fonts } from '@/constants/theme';
 import { StyleSheet, View } from 'react-native';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import React from 'react';
-import { Tabs } from 'expo-router';
+import React, { useEffect, useRef } from 'react';
+import { Tabs, useRouter } from 'expo-router';
+
+const LAST_TAB_KEY = '@last_tab';
+const VALID_TABS = ['index', 'workouts', 'exercises'];
 
 export const unstable_settings = {
-  initialRouteName: 'workouts',
+  initialRouteName: 'index',
 };
 
 export default function TabLayout() {
+  const router = useRouter();
+  const restored = useRef(false);
+
+  useEffect(() => {
+    if (restored.current) return;
+    restored.current = true;
+    AsyncStorage.getItem(LAST_TAB_KEY).then((tab) => {
+      if (tab && VALID_TABS.includes(tab) && tab !== 'index') {
+        router.replace(`/(tabs)/${tab}` as never);
+      }
+    });
+  }, []);
+
   return (
     <Tabs
-      initialRouteName="workouts"
+      initialRouteName="index"
+      screenListeners={({ route }) => ({
+        focus: () => {
+          AsyncStorage.setItem(LAST_TAB_KEY, route.name);
+        },
+      })}
       screenOptions={{
         headerShown: false,
         tabBarButton: HapticTab,
