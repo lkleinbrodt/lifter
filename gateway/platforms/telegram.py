@@ -4726,12 +4726,26 @@ class TelegramAdapter(BasePlatformAdapter):
 
         # Per-channel/topic ephemeral prompt
         from gateway.platforms.base import resolve_channel_prompt
+        from gateway.platforms.base import resolve_channel_skills
         _chat_id_str = str(chat.id)
         _channel_prompt = resolve_channel_prompt(
             self.config.extra,
             thread_id_str or _chat_id_str,
             _chat_id_str if thread_id_str else None,
         )
+        _channel_skills = resolve_channel_skills(
+            self.config.extra,
+            thread_id_str or _chat_id_str,
+            _chat_id_str if thread_id_str else None,
+        )
+        _auto_skill = topic_skill
+        if _channel_skills:
+            if isinstance(_auto_skill, str):
+                _auto_skill = _channel_skills + [_auto_skill]
+            elif isinstance(_auto_skill, list):
+                _auto_skill = _channel_skills + _auto_skill
+            else:
+                _auto_skill = _channel_skills
 
         return MessageEvent(
             text=message.text or "",
@@ -4742,7 +4756,7 @@ class TelegramAdapter(BasePlatformAdapter):
             platform_update_id=update_id,
             reply_to_message_id=reply_to_id,
             reply_to_text=reply_to_text,
-            auto_skill=topic_skill,
+            auto_skill=_auto_skill,
             channel_prompt=_channel_prompt,
             timestamp=message.date,
         )
