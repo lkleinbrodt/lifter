@@ -6,19 +6,30 @@ Lifter is a React Native/Expo mobile fitness app for the **5/3/1 weightlifting p
 
 **Stack**: Expo SDK 54, React 19, React Native 0.81, TypeScript 5.9, Expo Router 6
 
+This is a **personal, single-user app** for the developer's own iPhone. It is not distributed via the App Store or TestFlight, and there is no plan to ever do so — don't suggest `eas submit` or App Store Connect workflows.
+
 ## Quick Commands
 
 ```bash
-npm start          # Start Expo dev server
-npm run ios        # Start iOS simulator
-npm run android    # Start Android emulator
-npm run web        # Start web build
-npm run lint       # Run ESLint (expo lint)
+npm start                          # Start Expo dev server
+npm run ios                        # Start iOS simulator
+npm run android                    # Start Android emulator
+npm run web                        # Start web build
+npm run lint                       # Run ESLint (expo lint)
+./scripts/deploy-update.sh "msg"   # Push an OTA update to the installed build
 ```
 
 No test framework is configured. There are no test files in the project.
 
-Builds for production use EAS (Expo Application Services) configured in `eas.json`.
+## Deployment & Distribution
+
+- **Primary dev machine**: `chewy` (a Linux box, reachable via `ssh chewy`), project lives at `~/Projects/lifter`. The developer's Mac is only needed if Xcode or the iOS Simulator is required directly — not needed for the normal workflow, since EAS Build compiles iOS in the cloud regardless of what OS you run `eas`/`expo` commands from.
+- **Installing on the phone**: built via `eas build --profile preview --platform ios` — this is **internal (ad-hoc) distribution**, installed straight from the build's link/QR code on the phone. There is no App Store Connect / TestFlight step.
+- **OTA updates** (JS/asset-only changes, the common case): run `./scripts/deploy-update.sh "what changed"` from the project root. This pushes to the `preview` branch/channel — the one the installed build actually points at. Equivalent to `eas update --branch preview --platform ios --non-interactive --clear-cache --message "..."`.
+- **When a new build (not just an OTA update) is required**: native code changes, a new native module/config plugin, or a bump to `version` in `app.json`. `runtimeVersion` policy is `appVersion`, so a version bump requires a matching new build before OTA updates for that version will apply.
+- The `production` build profile/channel in `eas.json` is **unused** — it predates the decision to skip the App Store entirely and was never wired to anything installed. Don't push updates there.
+- `eas.json` pins `appleTeamId: "DU26G2LJFP"` (the developer's individual Apple Developer team) on every build profile, so the EAS CLI never prompts to choose between it and an unrelated organization team ("De la Cruz Consulting LLC") the developer was briefly added to for an unrelated project.
+- `eas-cli` on `chewy` is already authenticated as `lkleinbrodt`; no login step needed there.
 
 ## Project Structure
 
