@@ -6,10 +6,11 @@ import { Colors } from '@/constants/theme';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { detailHeaderOptions } from '@/constants/navigation';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export const unstable_settings = {
-  anchor: '(tabs)',
+  anchor: 'index',
 };
 
 export default function RootLayout() {
@@ -18,35 +19,12 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: Colors.dark.background }}>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="workout/[slug]"
-          options={{
-            headerStyle: {
-              backgroundColor: Colors.dark.surface,
-            },
-            headerTintColor: Colors.dark.text,
-            headerTitleStyle: {
-              color: Colors.dark.text,
-            },
-            headerBackTitle: 'Back',
-          }}
-        />
-        <Stack.Screen
-          name="archetype/[name]"
-          options={{
-            headerStyle: {
-              backgroundColor: Colors.dark.surface,
-            },
-            headerTintColor: Colors.dark.text,
-            headerTitleStyle: {
-              color: Colors.dark.text,
-            },
-            headerBackTitle: 'Back',
-          }}
-        />
-      </Stack>
+        <Stack screenOptions={{ contentStyle: { backgroundColor: Colors.dark.background } }}>
+          <Stack.Screen name="index" options={{ headerShown: false, animation: 'fade' }} />
+          <Stack.Screen name="531" options={{ headerShown: false, animation: 'fade' }} />
+          <Stack.Screen name="gslp" options={{ headerShown: false, animation: 'fade' }} />
+          <Stack.Screen name="archetype/[name]" options={detailHeaderOptions} />
+        </Stack>
         <StatusBar style="light" />
       </ThemeProvider>
     </GestureHandlerRootView>

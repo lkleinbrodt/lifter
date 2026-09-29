@@ -29,6 +29,7 @@ export const Colors = {
     tint: PALETTE.sage,
     tintMuted: PALETTE.sageMuted,
     icon: PALETTE.slate400,
+    error: PALETTE.error,
     border: 'rgba(255,255,255,0.08)', // Subtle border for 3D effect
     tabIconDefault: PALETTE.slate400,
     tabIconSelected: PALETTE.sage,
