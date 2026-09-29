@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/Card';
 import { Colors } from '@/constants/theme';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Input } from '@/components/ui/Input';
+import { ProgramHeader } from '@/components/program-header';
 import { SafeAreaContainer } from '@/components/safe-area';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -117,9 +118,7 @@ export default function MaxesScreen() {
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={{ flex: 1 }}>
             <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}>
-              <ThemedText type="display">
-                Training Maxes
-              </ThemedText>
+              <ProgramHeader title="Training Maxes" />
               <ThemedText style={styles.subtle}>
                 Edit your training max directly or calculate it from a 1RM.
               </ThemedText>

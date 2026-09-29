@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Colors } from '@/constants/theme';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { ProgramHeader } from '@/components/program-header';
 import { SafeAreaContainer } from '@/components/safe-area';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -100,9 +101,7 @@ export default function WorkoutsScreen() {
         <ScrollView
           contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
           showsVerticalScrollIndicator={false}>
-          <ThemedText type="display">
-            Workouts
-          </ThemedText>
+          <ProgramHeader title="Workouts" />
           {maxesUnset ? (
             <Card style={styles.emptyCard}>
               <ThemedText type="defaultSemiBold">Set your training maxes first</ThemedText>
@@ -142,7 +141,7 @@ export default function WorkoutsScreen() {
                       weekNumber={week.week}
                       pullupWeight={isWeightedPullups ? (maxes.weightedPullupWeight ?? 0) : undefined}
                       onToggleComplete={(shouldComplete) => updateCompletion(id, shouldComplete)}
-                      onPress={() => router.push(`/workout/${id}`)}
+                      onPress={() => router.push(`/531/workout/${id}`)}
                     />
                   );
                 })}
