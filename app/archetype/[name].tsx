@@ -22,14 +22,6 @@ export default function ArchetypeDetailScreen() {
       <Stack.Screen
         options={{
           title: tagName || 'Archetype',
-          headerStyle: {
-            backgroundColor: Colors.dark.surface,
-          },
-          headerTintColor: Colors.dark.text,
-          headerTitleStyle: {
-            color: Colors.dark.text,
-          },
-          headerBackTitle: 'Back',
         }}
       />
       <SafeAreaContainer edges={['top', 'left', 'right', 'bottom']}>

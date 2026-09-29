@@ -3,7 +3,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import {
-  calculatePlateMath,
   calculateSetWeight,
   getTrainingMaxForLift,
   getWeekSets,
@@ -21,6 +20,7 @@ import { Colors } from '@/constants/theme';
 import { SafeAreaContainer } from '@/components/safe-area';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { formatPlateMath } from '@/lib/plates';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function WorkoutDetailScreen() {
@@ -64,14 +64,6 @@ export default function WorkoutDetailScreen() {
         weight: calculateSetWeight(maxes[lift] ?? 0, set.percent),
       }))
     : Array.from({ length: 5 }, () => ({ reps: '5' }));
-
-  const formatPlateMath = (weight: number) => {
-    const plates = calculatePlateMath(weight);
-    if (plates.length === 0) {
-      return 'Bar only';
-    }
-    return `Plates per side: ${plates.join(' + ')}`;
-  };
 
   const handleComplete = async () => {
     const updated = Array.from(new Set([...completed, id]));

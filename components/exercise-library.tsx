@@ -2,6 +2,7 @@ import { SectionList, StyleSheet, View } from 'react-native';
 
 import { Card } from '@/components/ui/Card';
 import { Colors } from '@/constants/theme';
+import { ProgramHeader } from '@/components/program-header';
 import { getExercisesByPrimaryArchetype, type PrimaryArchetype } from '@/lib/exercises-data';
 import React, { useMemo } from 'react';
 import { SafeAreaContainer } from '@/components/safe-area';
@@ -48,7 +49,7 @@ export default function ExercisesScreen() {
           SectionSeparatorComponent={() => <View style={styles.sectionGap} />}
           ListHeaderComponent={
             <View style={styles.header}>
-              <ThemedText type="display">Exercise Library</ThemedText>
+              <ProgramHeader title="Exercises" />
             </View>
           }
           renderSectionHeader={({ section }) => (

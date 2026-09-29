@@ -2,7 +2,12 @@
 
 ## Project Overview
 
-Lifter is a React Native/Expo mobile fitness app for the **5/3/1 weightlifting program**. It calculates training weights, tracks workout completion, and provides an accessory exercise library. The app runs on iOS, Android, and Web.
+Lifter is a React Native/Expo mobile fitness app that supports two lifting programs, each on its own "side" of the app:
+
+- **5/3/1** (modified): calculates training weights from training maxes and tracks workout completion.
+- **GSLP** (Greyskull LP): alternating A/B sessions with per-lift linear progression driven by logged AMRAP reps.
+
+The app opens to a program picker (`app/index.tsx`) and reopens straight into the last-chosen program. A chip in each screen header switches back to the picker. Both programs share the accessory exercise library. The app runs on iOS, Android, and Web.
 
 **Stack**: Expo SDK 54, React 19, React Native 0.81, TypeScript 5.9, Expo Router 6
 
@@ -37,34 +42,45 @@ Full walkthrough in `MOBILE.md`. Same workflow as the `artoo` app in `~/Projects
 ## Project Structure
 
 ```
-app/                    # Screens (Expo Router file-based routing)
-  (tabs)/               # Bottom tab navigator
-    _layout.tsx         # Tab bar config (3 tabs: Maxes, Workouts, Exercises)
-    index.tsx           # Maxes screen — enter 1RM values
-    workouts.tsx        # Workout list — view/track weekly workouts
-    exercises.tsx       # Exercise library — browse by archetype
-  workout/[slug].tsx    # Workout detail (dynamic route, e.g. /workout/1-squat)
-  archetype/[name].tsx  # Accessory exercise list by archetype
-  _layout.tsx           # Root layout (GestureHandler, ThemeProvider, Stack)
-components/             # Reusable React components
-  ui/                   # Base primitives (Button, Card, Input, icons, collapsible)
-  themed-text.tsx       # Typography with variants (title, subtitle, label, display, etc.)
-  themed-view.tsx       # Themed container
-  safe-area.tsx         # Safe area wrapper
-  haptic-tab.tsx        # Tab button with haptic feedback
-lib/                    # Core business logic
-  workout-plan.ts       # 5/3/1 calculations, week/set definitions, plate math
-  storage.ts            # AsyncStorage persistence (maxes, completed workouts)
-  exercises-data.ts     # 250+ exercises categorized by movement archetype
-hooks/                  # Custom React hooks (color scheme, theme color)
+app/                      # Screens (Expo Router file-based routing)
+  _layout.tsx             # Root Stack (GestureHandler, ThemeProvider)
+  index.tsx               # Program picker; auto-opens last program on cold start
+  archetype/[name].tsx    # Accessory exercise list by archetype (shared)
+  531/                    # 5/3/1 side
+    _layout.tsx           # Stack: (tabs) + workout detail
+    (tabs)/               # Tabs: Maxes, Workouts, Exercises
+    workout/[slug].tsx    # Workout detail, e.g. /531/workout/1-squat
+  gslp/                   # GSLP side
+    _layout.tsx           # Stack: (tabs) + session
+    (tabs)/               # Tabs: Weights, Workouts, Exercises
+    session.tsx           # Log the next A/B session (warmups, AMRAP reps, accessories)
+components/               # Reusable React components
+  ui/                     # Base primitives (Button, Card, Input, icons, collapsible)
+  program-tabs.tsx        # Shared tab navigator used by both programs (remembers last tab)
+  program-header.tsx      # Screen title + program-switch chip
+  exercise-library.tsx    # Exercise library screen, mounted in both programs' tabs
+  themed-text.tsx         # Typography with variants (title, subtitle, label, display, etc.)
+  themed-view.tsx         # Themed container
+  safe-area.tsx           # Safe area wrapper
+  haptic-tab.tsx          # Tab button with haptic feedback
+lib/                      # Core business logic
+  programs.ts             # Program registry + active-program persistence
+  plates.ts               # Shared rounding and plate math (includes 1.25 lb microplates)
+  workout-plan.ts         # 5/3/1 calculations, week/set definitions
+  storage.ts              # 5/3/1 AsyncStorage persistence (maxes, completed workouts)
+  gslp.ts                 # GSLP lifts, A/B workouts, warmups, progression rules (pure functions)
+  gslp-storage.ts         # GSLP AsyncStorage persistence (state + in-progress draft)
+  exercises-data.ts       # 250+ exercises categorized by movement archetype
+hooks/                    # Custom React hooks (color scheme, theme color)
 constants/
-  theme.ts              # Design system: colors, fonts, layout, shadows
+  theme.ts                # Design system: colors, fonts, layout, shadows
+  navigation.ts           # Shared header options for pushed detail screens
 ```
 
 ## Architecture & Key Patterns
 
 ### Routing
-Expo Router with file-based routing. Tab navigation defined in `app/(tabs)/_layout.tsx`. Dynamic routes use `[slug]` and `[name]` parameters.
+Expo Router with file-based routing. Each program lives under its own directory (`app/531/`, `app/gslp/`) with a Stack layout wrapping a `(tabs)` group, so detail screens push over the tab bar. Both tab layouts render `components/program-tabs.tsx`. Dynamic routes use `[slug]` and `[name]` parameters.
 
 ### State Management
 - **Local state**: `useState()` for UI state
@@ -72,7 +88,11 @@ Expo Router with file-based routing. Tab navigation defined in `app/(tabs)/_layo
 - **Focus-based reload**: `useFocusEffect()` to refresh data when navigating between screens
 
 ### Data Model
-Two AsyncStorage keys:
+Shared AsyncStorage keys:
+- `@active_program` — `'531' | 'gslp'`, the program the app reopens to
+- `@last_tab` / `@gslp_last_tab` — last viewed tab per program
+
+5/3/1 keys:
 - `@user_maxes` — `{ squat: number, bench: number, deadlift: number, weightedPullupWeight: number }`
 - `@completed_workouts` — `string[]` of workout IDs like `"1-squat"`, `"3-deadlift"`
 
@@ -82,7 +102,19 @@ Two AsyncStorage keys:
 - **4 weeks**: Week 1 (5/5/5+), Week 2 (3/3/3+), Week 3 (5/3/1+), Week 4 (Deload)
 - **4 workout days**: Squat, Bench, Deadlift, Weighted Pull-Ups
 - **Plate math**: Calculates plates per side from total weight (bar = 45 lbs)
-- Workout IDs follow the pattern `{week}-{day}` (e.g. `"2-bench"`, `"1-weighted-pullups"`)
+- Workout IDs follow the pattern `{week}-{day}` (e.g. `"2-bench"`, `"1-weighted-pullups"`); detail route is `/531/workout/{id}`
+
+GSLP keys:
+- `@gslp_state` — `{ weights: Record<GslpLiftKey, number>, pullVariant: 'latPulldown' | 'chinup', history: GslpSessionLog[] }`
+- `@gslp_draft` — reps entered for the in-progress session, so they survive the app being killed
+
+### GSLP Program Logic (`lib/gslp.ts`)
+- **Rotation**: strict A/B alternation (A/B/A, then B/A/B). The next workout is the opposite of the last logged one. Week/day come from the session index (3 per week).
+- **Workout A (vertical)**: OHP, pull (lat pulldown 2×8, 1×8+ or chin-up 2×5, 1×5+), squat. **Workout B (horizontal)**: bench, row, deadlift (single 1×5+).
+- **Warmups**: 55%×4, 70%×3, 85%×2 of work weight, rounded to 5, never below the bar.
+- **Progression** (per lift, from AMRAP reps): hit target = +2.5 upper / +5 lower; 10+ reps = double jump; below target = −10% (rounded to the lift's jump, floored at its minimum, e.g. 95 for deadlift); "stopped for pain" = repeat the weight.
+- Finishing a session writes a history entry with before/after weights; **Undo** on the latest entry restores the before weights.
+- Per-lift form notes and A/B accessories are data in `gslpLifts` / `gslpWorkouts`.
 
 ### Key Types (`lib/storage.ts`, `lib/workout-plan.ts`)
 ```typescript
