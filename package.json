@@ -3,12 +3,17 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
+    "postinstall": "bash scripts/patch-prompts-confirm.sh",
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "prebuild:clean": "bash scripts/prebuild-clean.sh",
+    "release:ios": "bash scripts/release-ios.sh",
+    "release:ios:full": "bash scripts/prebuild-clean.sh && bash scripts/release-ios.sh",
+    "update:ota": "bash scripts/ota-update.sh"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

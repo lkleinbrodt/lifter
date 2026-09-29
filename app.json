@@ -13,7 +13,8 @@
       "bundleIdentifier": "com.lkleinbrodt.lifter",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "appleTeamId": "DU26G2LJFP"
     },
     "android": {
       "adaptiveIcon": {
@@ -34,7 +35,7 @@
       [
         "expo-splash-screen",
         {
-        "image": "./assets/logo.png",
+          "image": "./assets/logo.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#000000",
@@ -59,7 +60,13 @@
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/b847e9da-adbc-405d-9ac0-43ba6968e8f4"
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 3000,
+      "url": "https://u.expo.dev/b847e9da-adbc-405d-9ac0-43ba6968e8f4",
+      "requestHeaders": {
+        "expo-channel-name": "preview"
+      }
     }
   }
 }

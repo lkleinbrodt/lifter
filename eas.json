@@ -7,25 +7,18 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "channel": "development",
-      "ios": {
-        "appleTeamId": "DU26G2LJFP"
-      }
+      "channel": "development"
     },
     "preview": {
       "distribution": "internal",
       "channel": "preview",
       "ios": {
-        "buildConfiguration": "Release",
-        "appleTeamId": "DU26G2LJFP"
+        "buildConfiguration": "Release"
       }
     },
     "production": {
       "autoIncrement": true,
-      "channel": "production",
-      "ios": {
-        "appleTeamId": "DU26G2LJFP"
-      }
+      "channel": "production"
     }
   },
   "submit": {
