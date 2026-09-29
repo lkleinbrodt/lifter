@@ -19,7 +19,6 @@ import React, { useCallback, useState } from 'react';
 import { loadGslpState, saveGslpState } from '@/lib/gslp-storage';
 
 import { Card } from '@/components/ui/Card';
-import { Collapsible } from '@/components/ui/collapsible';
 import { Colors } from '@/constants/theme';
 import { Input } from '@/components/ui/Input';
 import { ProgramHeader } from '@/components/program-header';
@@ -165,28 +164,6 @@ export default function GslpWeightsScreen() {
               contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}
               keyboardShouldPersistTaps="handled">
               <ProgramHeader title="Weights" />
-              <ThemedText style={styles.subtle}>
-                Current work-set weight for each lift. Finishing a session updates these automatically.
-              </ThemedText>
-
-              <Card style={styles.card}>
-                <Collapsible title="Picking starting weights">
-                  <View style={styles.guide}>
-                    <ThemedText style={styles.subtle}>
-                      Work up in sets of 5 from the empty bar, adding 10–20 lb, until form or bar speed slips. Use
-                      that weight.
-                    </ThemedText>
-                    <ThemedText style={styles.subtle}>
-                      Start deliberately light. You&apos;ll reach hard weights in 2–3 weeks anyway.
-                    </ThemedText>
-                    <ThemedText style={styles.subtle}>
-                      Chin-ups start at bodyweight with no added load. Deadlift starts at 95 lb minimum for bar
-                      height.
-                    </ThemedText>
-                  </View>
-                </Collapsible>
-              </Card>
-
               {(['A', 'B'] as const).map((key) => (
                 <View key={key} style={styles.section}>
                   <ThemedText type="subtitle" style={styles.sectionTitle}>
@@ -221,12 +198,6 @@ const styles = StyleSheet.create({
   },
   card: {
     gap: 10,
-  },
-  guide: {
-    gap: 8,
-  },
-  subtle: {
-    color: Colors.dark.textMuted,
   },
   hint: {
     color: Colors.dark.textMuted,
