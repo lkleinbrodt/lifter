@@ -14,7 +14,7 @@ import {
   jumpFor,
   liftsForWorkout,
 } from '@/lib/gslp';
-import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TouchableWithoutFeedback, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import React, { useCallback, useState } from 'react';
 import { loadGslpState, saveGslpState } from '@/lib/gslp-storage';
 
@@ -158,12 +158,12 @@ export default function GslpWeightsScreen() {
 
   return (
     <SafeAreaContainer edges={['top', 'left', 'right']}>
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
         <ThemedView style={styles.container}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
             <ScrollView
               contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}
-              keyboardShouldPersistTaps="handled">
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag">
               <ProgramHeader title="Weights" />
               <ThemedText style={styles.subtle}>
                 Current work-set weight for each lift. Finishing a session updates these automatically.
@@ -200,7 +200,6 @@ export default function GslpWeightsScreen() {
             </ScrollView>
           </KeyboardAvoidingView>
         </ThemedView>
-      </TouchableWithoutFeedback>
     </SafeAreaContainer>
   );
 }

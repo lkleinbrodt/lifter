@@ -1,4 +1,4 @@
-import { Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, TouchableWithoutFeedback, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { LiftKey, Maxes, defaultMaxes, loadMaxes, saveMaxes } from '@/lib/storage';
 import React, { useCallback, useState } from 'react';
 import { getLiftLabel, trainingMax } from '@/lib/workout-plan';
@@ -112,12 +112,14 @@ export default function MaxesScreen() {
 
   return (
     <SafeAreaContainer edges={['top', 'left', 'right']}>
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
         <ThemedView style={styles.container}>
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={{ flex: 1 }}>
-            <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}>
+            <ScrollView
+              contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag">
               <ProgramHeader title="Training Maxes" />
               <ThemedText style={styles.subtle}>
                 Edit your training max directly or calculate it from a 1RM.
@@ -241,7 +243,6 @@ export default function MaxesScreen() {
             </Modal>
           </KeyboardAvoidingView>
         </ThemedView>
-      </TouchableWithoutFeedback>
     </SafeAreaContainer>
   );
 }
