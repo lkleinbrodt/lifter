@@ -1,6 +1,9 @@
 import * as Haptics from 'expo-haptics';
 
 import {
+  ACCESSORY_NOTE,
+  type AccessoryArchetype,
+  type AccessorySlot,
   GSLP_AMRAP_NOTE,
   GSLP_REST_NOTE,
   type GslpLift,
@@ -8,6 +11,8 @@ import {
   type GslpSet,
   type GslpState,
   type LiftResult,
+  accessoryArchetypes,
+  accessoryPrescription,
   completeSession,
   defaultGslpState,
   describeOutcome,
@@ -18,6 +23,7 @@ import {
   isResultComplete,
   isWeightSet,
   nextSession,
+  pickedAccessory,
   warmupSets,
   workSets,
 } from '@/lib/gslp';
@@ -38,7 +44,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Results = Partial<Record<GslpLiftKey, LiftResult>>;
 
-const emptyResult: LiftResult = { amrapReps: null, painStop: false };
+const emptyResult: LiftResult = { amrapReps: null };
 
 export default function GslpSessionScreen() {
   const router = useRouter();
@@ -78,6 +84,13 @@ export default function GslpSessionScreen() {
     void saveGslpDraft({ workout: session.workout, sessionIndex: session.index, results: next });
   };
 
+  const handlePickAccessory = (archetype: AccessoryArchetype, name: string) => {
+    void Haptics.selectionAsync();
+    const next = { ...state, accessoryPicks: { ...state.accessoryPicks, [archetype]: name } };
+    setState(next);
+    void saveGslpState(next);
+  };
+
   const handleFinish = async () => {
     const next = completeSession(state, session.workout, results);
     await saveGslpState(next);
@@ -109,28 +122,15 @@ export default function GslpSessionScreen() {
               <ThemedText type="subtitle" style={styles.blockTitle}>
                 Accessories
               </ThemedText>
-              <Card style={styles.card}>
-                {workout.accessories.map((accessory, index) => (
-                  <View
-                    key={accessory.name}
-                    style={[styles.accessoryRow, index < workout.accessories.length - 1 && styles.divider]}>
-                    <View style={styles.accessoryText}>
-                      <ThemedText type="defaultSemiBold">{accessory.name}</ThemedText>
-                      <ThemedText style={styles.subtle}>{accessory.prescription}</ThemedText>
-                      {accessory.note ? <ThemedText style={styles.note}>{accessory.note}</ThemedText> : null}
-                    </View>
-                    {accessory.archetype ? (
-                      <Pressable
-                        onPress={() => router.push(`/archetype/${encodeURIComponent(accessory.archetype!)}`)}
-                        hitSlop={8}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Alternatives to ${accessory.name}`}>
-                        <ThemedText style={styles.link}>Swap</ThemedText>
-                      </Pressable>
-                    ) : null}
-                  </View>
-                ))}
-              </Card>
+              <ThemedText style={styles.subtle}>{ACCESSORY_NOTE}</ThemedText>
+              {workout.accessories.map((slot) => (
+                <AccessoryCard
+                  key={slot.archetype}
+                  slot={slot}
+                  picked={pickedAccessory(state.accessoryPicks, slot.archetype).name}
+                  onPick={(name) => handlePickAccessory(slot.archetype, name)}
+                />
+              ))}
             </View>
 
             {weightsMissing ? (
@@ -221,28 +221,54 @@ function LiftCard({ lift, weight, weightSet, result, onChange }: LiftCardProps) 
           <StepButton icon="plus" onPress={() => stepReps(1)} label="More reps" />
         </View>
 
-        <Pressable
-          onPress={() => {
-            void Haptics.selectionAsync();
-            onChange({ painStop: !result.painStop });
-          }}
-          style={styles.checkRow}
-          accessibilityRole="checkbox"
-          accessibilityState={{ checked: result.painStop }}>
-          <IconSymbol
-            name={result.painStop ? 'checkmark.square.fill' : 'square'}
-            size={22}
-            color={result.painStop ? Colors.dark.tint : Colors.dark.icon}
-          />
-          <ThemedText style={styles.checkText}>Stopped for pain, not the weight (repeat instead of deload)</ThemedText>
-        </Pressable>
-
         {preview ? (
           <ThemedText style={[styles.preview, preview.outcome === 'deload' && styles.previewDeload]}>
             Next time: {formatLiftWeight(lift, preview.nextWeight)} ·{' '}
             {describeOutcome(preview.outcome, weight, preview.nextWeight)}
           </ThemedText>
         ) : null}
+      </View>
+    </Card>
+  );
+}
+
+function AccessoryCard({
+  slot,
+  picked,
+  onPick,
+}: {
+  slot: AccessorySlot;
+  picked: string;
+  onPick: (name: string) => void;
+}) {
+  const config = accessoryArchetypes[slot.archetype];
+  const exercise = config.exercises.find((item) => item.name === picked) ?? config.exercises[0];
+
+  return (
+    <Card style={styles.card}>
+      <View style={styles.accessoryHeader}>
+        <ThemedText type="label">{config.label}</ThemedText>
+        {slot.optional ? <ThemedText style={styles.optional}>Optional</ThemedText> : null}
+      </View>
+      <View>
+        <ThemedText type="defaultSemiBold">{exercise.name}</ThemedText>
+        <ThemedText style={styles.subtle}>{accessoryPrescription(slot.archetype, exercise)}</ThemedText>
+      </View>
+      <View style={styles.chips}>
+        {config.exercises.map((item) => {
+          const selected = item.name === exercise.name;
+          return (
+            <Pressable
+              key={item.name}
+              onPress={() => onPick(item.name)}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              style={[styles.chip, selected && styles.chipSelected]}>
+              <ThemedText style={[styles.chipText, selected && styles.chipTextSelected]}>{item.name}</ThemedText>
+              <ThemedText style={styles.chipEquipment}>{item.equipment}</ThemedText>
+            </Pressable>
+          );
+        })}
       </View>
     </Card>
   );
@@ -327,16 +353,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 0,
   },
-  checkRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  checkText: {
-    flex: 1,
-    fontSize: 14,
-    color: Colors.dark.textMuted,
-  },
   preview: {
     color: Colors.dark.tint,
   },
@@ -349,22 +365,43 @@ const styles = StyleSheet.create({
   blockTitle: {
     opacity: 0.9,
   },
-  accessoryRow: {
+  accessoryHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 12,
   },
-  accessoryText: {
-    flex: 1,
-    gap: 2,
+  optional: {
+    color: Colors.dark.textMuted,
+    fontSize: 12,
+    fontStyle: 'italic',
   },
-  divider: {
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.dark.border,
+  chips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
   },
-  link: {
-    color: Colors.dark.tint,
+  chip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    backgroundColor: Colors.dark.background,
+  },
+  chipSelected: {
+    borderColor: Colors.dark.tint,
+    backgroundColor: Colors.dark.tintMuted,
+  },
+  chipText: {
+    fontSize: 13,
+    color: Colors.dark.textMuted,
+  },
+  chipTextSelected: {
+    color: Colors.dark.text,
+  },
+  chipEquipment: {
+    fontSize: 10,
+    color: Colors.dark.textMuted,
   },
   centered: {
     flex: 1,

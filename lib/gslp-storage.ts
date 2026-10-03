@@ -1,12 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
+  type AccessoryPicks,
   type GslpLiftKey,
   type GslpLiftLog,
   type GslpSessionLog,
   type GslpState,
   type GslpWorkoutKey,
   type LiftResult,
+  accessoryArchetypes,
   defaultGslpState,
   gslpLiftOrder,
 } from './gslp';
@@ -43,6 +45,15 @@ function normalizeState(value: unknown): GslpState {
     }
   }
   const pullVariant = value.pullVariant === 'chinup' ? 'chinup' : 'latPulldown';
+  const accessoryPicks: AccessoryPicks = {};
+  if (isRecord(value.accessoryPicks)) {
+    for (const [archetype, config] of Object.entries(accessoryArchetypes)) {
+      const pick = value.accessoryPicks[archetype];
+      if (config.exercises.some((exercise) => exercise.name === pick)) {
+        accessoryPicks[archetype as keyof AccessoryPicks] = pick as string;
+      }
+    }
+  }
   const history = Array.isArray(value.history)
     ? value.history.filter(
         (item: unknown): item is GslpSessionLog =>
@@ -54,7 +65,7 @@ function normalizeState(value: unknown): GslpState {
           item.lifts.every((log: unknown) => isRecord(log) && isLiftKey((log as GslpLiftLog).lift)),
       )
     : [];
-  return { weights, pullVariant, history };
+  return { weights, pullVariant, accessoryPicks, history };
 }
 
 export async function loadGslpState(): Promise<GslpState> {
