@@ -102,16 +102,17 @@ Shared AsyncStorage keys:
 - Workout IDs follow the pattern `{week}-{day}` (e.g. `"2-bench"`, `"1-weighted-pullups"`); detail route is `/531/workout/{id}`
 
 GSLP keys:
-- `@gslp_state` — `{ weights: Record<GslpLiftKey, number>, pullVariant: 'latPulldown' | 'chinup', history: GslpSessionLog[] }`
+- `@gslp_state` — `{ weights: Record<GslpLiftKey, number>, pullVariant: 'latPulldown' | 'chinup', accessoryPicks: Partial<Record<AccessoryArchetype, string>>, history: GslpSessionLog[] }`
 - `@gslp_draft` — reps entered for the in-progress session, so they survive the app being killed
 
 ### GSLP Program Logic (`lib/gslp.ts`)
 - **Rotation**: strict A/B alternation (A/B/A, then B/A/B). The next workout is the opposite of the last logged one. Week/day come from the session index (3 per week).
 - **Workout A (vertical)**: OHP, pull (lat pulldown 2×8, 1×8+ or chin-up 2×5, 1×5+), squat. **Workout B (horizontal)**: bench, row, deadlift (single 1×5+).
 - **Warmups**: 55%×4, 70%×3, 85%×2 of work weight, rounded to 5, never below the bar.
-- **Progression** (per lift, from AMRAP reps): hit target = +2.5 upper / +5 lower; 10+ reps = double jump; below target = −10% (rounded to the lift's jump, floored at its minimum, e.g. 95 for deadlift); "stopped for pain" = repeat the weight.
+- **Progression** (per lift, from AMRAP reps): hit target = +2.5 upper / +5 lower; 10+ reps = double jump; below target = −10% (rounded to the lift's jump, floored at its minimum, e.g. 95 for deadlift).
 - Finishing a session writes a history entry with before/after weights; **Undo** on the latest entry restores the before weights.
-- Per-lift form notes and A/B accessories are data in `gslpLifts` / `gslpWorkouts`.
+- **Accessories** are push / pull / core slots (plus an optional hamstring slot on A), each taking the opposite orientation from the day's main lifts: A = horizontal push, horizontal pull, anti-extension core, [hamstring]; B = vertical push, vertical pull, anti-rotation core. Each archetype has an exercise pool in `accessoryArchetypes` (with equipment); only the archetype is fixed, and the last pick per archetype is saved as `accessoryPicks` in `@gslp_state`. Prescription: 2–3 × 10–15 (30–45s for timed), hamstrings 2 × 10.
+- The app deliberately has no injury/pain copy or pain-stop logic; the user manages that themselves.
 
 ### Key Types (`lib/storage.ts`, `lib/workout-plan.ts`)
 ```typescript
