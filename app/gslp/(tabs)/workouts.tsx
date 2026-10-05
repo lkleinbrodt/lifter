@@ -182,7 +182,6 @@ const outcomeColor: Record<Outcome, string> = {
   progress: Colors.dark.tint,
   double: Colors.dark.tint,
   deload: Colors.dark.error,
-  repeat: Colors.dark.textMuted,
 };
 
 function SessionCard({ session, index, onUndo }: { session: GslpSessionLog; index: number; onUndo?: () => void }) {
