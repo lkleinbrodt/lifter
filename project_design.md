@@ -1,3 +1,5 @@
+> **Historical.** This is the original 5/3/1-only spec. The app now also has a GSLP program and a program picker; `CLAUDE.md` is the current source of truth for structure and logic.
+
 ***
 
 # Project Specification: Simple 5/3/1 Calculator

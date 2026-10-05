@@ -21,7 +21,7 @@ The installed build listens on OTA channel **`preview`** (set in `app.json` → 
 npm run update:ota -- "add rest timer"
 ```
 
-This needs `eas-cli` (`npm i -g eas-cli`) logged in as `lkleinbrodt`, and it works from the Mac or from `chewy`. The app checks for updates on launch. It downloads an update on one launch and applies it on the next, so force-quit and reopen the app twice.
+This needs `eas-cli` (`npm i -g eas-cli`) logged in as `lkleinbrodt`, and it works from the Mac or from `chewy`. The script refuses to run unless you are on a clean `main`, because the update bundles the working tree (override with `OTA_ANY_BRANCH=1`). The app checks for updates on launch. It downloads an update on one launch and applies it on the next, so force-quit and reopen the app twice.
 
 **When OTA is not enough:** if you change native code, add a native module or config plugin, change the icon or splash, or bump `version` in `app.json`, rebuild. `runtimeVersion` follows `version`, so after a version bump, OTAs only reach a build made with the new version.
 
