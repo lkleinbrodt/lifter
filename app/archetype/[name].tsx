@@ -32,7 +32,7 @@ export default function ArchetypeDetailScreen() {
             {exercises.length === 0 ? (
               <Card style={styles.card}>
                 <ThemedText style={styles.emptyText}>
-                  No exercises found with the tag "{tagName}".
+                  No exercises found with the tag &quot;{tagName}&quot;.
                 </ThemedText>
               </Card>
             ) : (

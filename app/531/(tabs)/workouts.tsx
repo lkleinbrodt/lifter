@@ -106,7 +106,7 @@ export default function WorkoutsScreen() {
             <Card style={styles.emptyCard}>
               <ThemedText type="defaultSemiBold">Set your training maxes first</ThemedText>
               <ThemedText style={styles.emptySubtext}>
-                Go to the Maxes tab to enter your training maxes. Weights will appear here once they're set.
+                Go to the Maxes tab to enter your training maxes. Weights will appear here once they&apos;re set.
               </ThemedText>
             </Card>
           ) : null}
