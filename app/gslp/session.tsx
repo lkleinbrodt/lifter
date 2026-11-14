@@ -52,6 +52,7 @@ export default function GslpSessionScreen() {
   const [state, setState] = useState<GslpState>(defaultGslpState);
   const [results, setResults] = useState<Results>({});
   const [loading, setLoading] = useState(true);
+  const [startedAt, setStartedAt] = useState<string | undefined>();
 
   useEffect(() => {
     Promise.all([loadGslpState(), loadGslpDraft()]).then(([stored, draft]) => {
@@ -59,6 +60,7 @@ export default function GslpSessionScreen() {
       setState(stored);
       if (draft && draft.sessionIndex === upcoming.index && draft.workout === upcoming.workout) {
         setResults(draft.results);
+        setStartedAt(draft.startedAt);
       }
       setLoading(false);
     });
@@ -80,8 +82,10 @@ export default function GslpSessionScreen() {
 
   const updateResult = (key: GslpLiftKey, patch: Partial<LiftResult>) => {
     const next = { ...results, [key]: { ...emptyResult, ...results[key], ...patch } };
+    const started = startedAt ?? new Date().toISOString();
+    setStartedAt(started);
     setResults(next);
-    void saveGslpDraft({ workout: session.workout, sessionIndex: session.index, results: next });
+    void saveGslpDraft({ workout: session.workout, sessionIndex: session.index, startedAt: started, results: next });
   };
 
   const handlePickAccessory = (archetype: AccessoryArchetype, name: string) => {
@@ -92,7 +96,7 @@ export default function GslpSessionScreen() {
   };
 
   const handleFinish = async () => {
-    const next = completeSession(state, session.workout, results);
+    const next = completeSession(state, session.workout, results, startedAt ? new Date(startedAt) : new Date());
     await saveGslpState(next);
     await clearGslpDraft();
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

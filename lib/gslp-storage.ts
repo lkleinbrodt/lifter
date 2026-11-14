@@ -20,6 +20,7 @@ const DRAFT_KEY = '@gslp_draft';
 export type GslpDraft = {
   workout: GslpWorkoutKey;
   sessionIndex: number;
+  startedAt?: string; // ISO; stamped on the history entry when the session finishes
   results: Partial<Record<GslpLiftKey, LiftResult>>;
 };
 
@@ -91,6 +92,7 @@ export async function loadGslpDraft(): Promise<GslpDraft | null> {
     return {
       workout: parsed.workout,
       sessionIndex: toNumber(parsed.sessionIndex),
+      startedAt: typeof parsed.startedAt === 'string' && !Number.isNaN(Date.parse(parsed.startedAt)) ? parsed.startedAt : undefined,
       results: parsed.results as GslpDraft['results'],
     };
   } catch {
