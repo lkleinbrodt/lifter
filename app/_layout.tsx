@@ -7,7 +7,9 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { detailHeaderOptions } from '@/constants/navigation';
+import { refreshActiveWorkout, restoreRest } from '@/lib/session-store';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useEffect } from 'react';
 
 export const unstable_settings = {
   anchor: 'index',
@@ -15,6 +17,11 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+
+  useEffect(() => {
+    void refreshActiveWorkout();
+    void restoreRest();
+  }, []);
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: Colors.dark.background }}>

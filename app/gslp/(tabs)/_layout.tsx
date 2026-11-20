@@ -5,6 +5,7 @@ import React from 'react';
 const tabs: ProgramTab[] = [
   { name: 'index', title: 'Weights', icon: 'gauge.medium' },
   { name: 'workouts', title: 'Workouts', icon: 'checklist.checked' },
+  { name: 'history', title: 'History', icon: 'clock.arrow.circlepath' },
   { name: 'exercises', title: 'Exercises', icon: 'list.bullet' },
 ];
 

@@ -2,7 +2,7 @@
 
 Turn Lifter from "tells me what to do" into the app I use *during* the workout, replacing Strong. Strong's common tracking features plus Lifter's program logic: the workout opens with today's prescribed numbers already filled in.
 
-Status (2026-11-20): Phase 1 is on `main` and installed on the phone (1.1.0), with Strong history imported. Phase 2 code is done on `lifter-2/phase-2-workout`; it ships OTA.
+Status (2026-11-20): Phases 1–2 are on `main` and on the phone (1.1.0 + OTA). Phase 3 code is done on `lifter-2/phase-3-comfort`.
 
 ## Principles
 
@@ -184,6 +184,19 @@ Each phase is its own branch and PR.
 - Rest timer (inline bar, header pill, ±15s / Skip, notification when locked).
 - Minimized workout bar.
 - History tab with workout detail, edit and delete.
+- **Built:**
+  - `lib/session-store.ts` holds the active workout and the rest timer for the whole app.
+  - `components/workout/rest-bar.tsx` and `active-workout-bar.tsx`.
+  - `components/workout-history.tsx`, mounted as the GSLP History tab.
+- **Notes:**
+  - The rest timer is a sticky bar at the bottom of the workout screen, not Strong's inline bar plus header pill. It's simpler and always visible.
+  - Checking a work or AMRAP set starts it; warmups don't. It lasts `restSecFor(exercise)` (default 2:00).
+  - The timer survives an app relaunch (`@rest_timer`), and the local notification fires with the phone locked. Notification permission is requested on the first rest.
+  - The minimized bar shows the workout name, elapsed time and any rest countdown, and sits above the tab bar.
+  - Finished workouts have Edit (autosaves; GSLP weights don't change) and Delete. Deleting the latest GSLP session also undoes its progression.
+
+### Phase 3.5: Visual polish
+- The functional screens work but look rough. Do a dedicated design pass on the workout screen, start screen, history and summary: spacing, hierarchy, the set table, and the tone of the done/rest states.
 
 ### Phase 4: Supersets
 - Group exercises in the UI. Logging alternates between the grouped exercises, and the rest timer starts after the last exercise in the group.

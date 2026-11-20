@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import React, { useState } from 'react';
 
 import { Colors, Fonts } from '@/constants/theme';
@@ -66,6 +66,10 @@ function NumberField({
       placeholderTextColor={Colors.dark.textMuted}
       keyboardType={decimal ? 'decimal-pad' : 'number-pad'}
       keyboardAppearance="dark"
+      // Native clear (iOS) so the first keystroke always replaces the number; clearing
+      // through React state alone can lose the race with fast typing.
+      clearTextOnFocus
+      selectTextOnFocus={Platform.OS !== 'ios'}
       onFocus={() => setDraft('')}
       onChangeText={(text) => {
         setDraft(text);

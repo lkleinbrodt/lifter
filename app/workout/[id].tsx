@@ -21,16 +21,21 @@ import {
   addExercise,
   addSet,
   formatDuration,
+  formatMinutes,
   hasDoneSets,
   removeExercise,
   removeSet,
   replaceExercise,
   setsFromLast,
+  finalizeWorkout,
   unfinishedSetCount,
   updateSet,
   workoutStats,
 } from '@/lib/workout-edit';
-import { discardWorkout, finishWorkout, lastSetsFor, reopenGslpWorkout } from '@/lib/workout-actions';
+import { deleteFinishedWorkout, discardWorkout, finishWorkout, lastSetsFor, reopenGslpWorkout } from '@/lib/workout-actions';
+import { RestBar } from '@/components/workout/rest-bar';
+import { restSecFor, getExercise } from '@/lib/exercises';
+import { startRest } from '@/lib/session-store';
 import { getWorkout, saveWorkout } from '@/lib/db';
 import { gslpOptionalSlots, gslpProgressionFor, gslpSlotChoices, gslpSlotLabel } from '@/lib/gslp-program';
 
@@ -44,7 +49,6 @@ import type { ProgressionLine } from '@/lib/program-module';
 import type { SetPatch } from '@/components/workout/set-row';
 import { ThemedText } from '@/components/themed-text';
 import { formatSet } from '@/components/workout/set-row';
-import { getExercise } from '@/lib/exercises';
 import { gslpLifts } from '@/lib/gslp';
 import { loadGslpState } from '@/lib/gslp-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -75,6 +79,8 @@ export default function WorkoutScreen() {
   const [picker, setPicker] = useState<PickerMode>(null);
   const [historyId, setHistoryId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false); // editing a finished workout
+  const editingRef = useRef(false);
   const [now, setNow] = useState(() => Date.now());
 
   // ---- Load + autosave ----
@@ -93,7 +99,7 @@ export default function WorkoutScreen() {
 
   const apply = useCallback((fn: (current: Workout) => Workout) => {
     const current = workoutRef.current;
-    if (!current || current.finishedAt) return;
+    if (!current || (current.finishedAt && !editingRef.current)) return;
     const next = fn(current);
     workoutRef.current = next;
     setWorkout(next);
@@ -292,6 +298,46 @@ export default function WorkoutScreen() {
       },
     ]);
 
+  const startEditing = () => {
+    editingRef.current = true;
+    setEditing(true);
+  };
+
+  const stopEditing = () => {
+    const current = workoutRef.current;
+    if (!current?.finishedAt) return;
+    // Keep checked sets and anything with values; editing never changes when it finished.
+    const cleaned = { ...finalizeWorkout(current, 'complete'), finishedAt: current.finishedAt };
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = null;
+    workoutRef.current = cleaned;
+    setWorkout(cleaned);
+    persist(cleaned);
+    editingRef.current = false;
+    setEditing(false);
+  };
+
+  const removeFinished = () => {
+    const latestGslp = gslp.history.at(-1)?.workoutId === id;
+    Alert.alert(
+      'Delete workout?',
+      latestGslp
+        ? 'Removes it from the log and undoes its GSLP progression.'
+        : 'Removes it from the log. GSLP weights are not changed.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteFinishedWorkout(id);
+            router.back();
+          },
+        },
+      ],
+    );
+  };
+
   // ---- Render ----
 
   if (!workout) {
@@ -313,9 +359,15 @@ export default function WorkoutScreen() {
     <>
       <Stack.Screen
         options={{
-          title: finished ? 'Summary' : formatDuration(stats.durationSec),
+          title: finished ? (editing ? 'Edit Workout' : 'Summary') : formatDuration(stats.durationSec),
           headerRight: finished
-            ? undefined
+            ? editing
+              ? () => (
+                  <Pressable onPress={stopEditing} hitSlop={8} style={styles.finishButton}>
+                    <ThemedText style={styles.finishText}>Save</ThemedText>
+                  </Pressable>
+                )
+              : undefined
             : () => (
                 <Pressable onPress={finish} disabled={busy} hitSlop={8} style={styles.finishButton}>
                   <ThemedText style={styles.finishText}>Finish</ThemedText>
@@ -335,7 +387,7 @@ export default function WorkoutScreen() {
             <ThemedText style={styles.muted}>
               {new Date(workout.startedAt).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
             </ThemedText>
-            {finished ? (
+            {finished && !editing ? (
               workout.notes ? <ThemedText style={styles.notesText}>{workout.notes}</ThemedText> : null
             ) : (
               <TextInput
@@ -353,7 +405,7 @@ export default function WorkoutScreen() {
           {finished ? (
             <Card style={styles.summary}>
               <View style={styles.statsRow}>
-                <Stat label="Time" value={formatDuration(stats.durationSec)} />
+                <Stat label="Time" value={formatMinutes(stats.durationSec)} />
                 <Stat label="Sets" value={String(stats.sets)} />
                 <Stat label="Volume" value={`${Math.round(stats.volume).toLocaleString()} lb`} />
               </View>
@@ -368,12 +420,28 @@ export default function WorkoutScreen() {
                   </ThemedText>
                 </View>
               ))}
-              <Button title="Done" onPress={() => router.back()} />
-              {progression?.isLatest ? <Button title="Undo & reopen" variant="secondary" onPress={reopen} /> : null}
+              {!editing ? (
+                <>
+                  <Button title="Done" onPress={() => router.back()} />
+                  <View style={styles.summaryActions}>
+                    <Button title="Edit" variant="secondary" style={styles.flex} onPress={startEditing} />
+                    {progression?.isLatest ? (
+                      <Button title="Undo & reopen" variant="secondary" style={styles.flex} onPress={reopen} />
+                    ) : null}
+                  </View>
+                  <Pressable onPress={removeFinished} style={styles.discard}>
+                    <ThemedText style={styles.discardText}>Delete Workout</ThemedText>
+                  </Pressable>
+                </>
+              ) : (
+                <ThemedText style={styles.small}>
+                  Editing the log only. GSLP weights don&apos;t change; use Undo &amp; reopen on the latest session for that.
+                </ThemedText>
+              )}
             </Card>
           ) : null}
 
-          {finished
+          {finished && !editing
             ? workout.exercises.map((entry) => {
                 const exercise = getExercise(entry.exerciseId);
                 return (
@@ -397,7 +465,11 @@ export default function WorkoutScreen() {
                     previous={previous[entry.exerciseId] ?? []}
                     slotLabel={slotLabel}
                     choices={isGslp(workout) ? gslpSlotChoices(entry.slot)?.exerciseIds : undefined}
-                    onSetChange={(setId, patch: SetPatch) => apply((w) => updateSet(w, entry.id, setId, patch))}
+                    onSetChange={(setId, patch: SetPatch) => {
+                      apply((w) => updateSet(w, entry.id, setId, patch));
+                      const set = entry.sets.find((item) => item.id === setId);
+                      if (!finished && patch.done && set && set.type !== 'warmup') void startRest(restSecFor(entry.exerciseId));
+                    }}
                     onSetDelete={(setId) => apply((w) => removeSet(w, entry.id, setId))}
                     onAddSet={() => apply((w) => addSet(w, entry.id))}
                     onChoose={(exerciseId) => swapTo(entry.id, exerciseId)}
@@ -407,7 +479,7 @@ export default function WorkoutScreen() {
                 );
               })}
 
-          {!finished ? (
+          {!finished || editing ? (
             <View style={styles.footer}>
               {optionalSlots.map((slot) => (
                 <Button
@@ -418,13 +490,18 @@ export default function WorkoutScreen() {
                 />
               ))}
               <Button title="Add Exercise" variant="secondary" onPress={() => setPicker({ kind: 'add' })} />
-              <Pressable onPress={discard} style={styles.discard}>
-                <ThemedText style={styles.discardText}>Discard Workout</ThemedText>
-              </Pressable>
+              {editing ? (
+                <Button title="Save Changes" onPress={stopEditing} />
+              ) : (
+                <Pressable onPress={discard} style={styles.discard}>
+                  <ThemedText style={styles.discardText}>Discard Workout</ThemedText>
+                </Pressable>
+              )}
             </View>
           ) : null}
         </ScrollView>
       </KeyboardAvoidingView>
+      {!finished ? <RestBar bottomInset={insets.bottom} /> : null}
 
       <ExercisePicker
         visible={picker !== null}
@@ -474,6 +551,7 @@ const styles = StyleSheet.create({
   stat: { gap: 4 },
   lineRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   finishedCard: { gap: 4 },
+  summaryActions: { flexDirection: 'row', gap: 12 },
   notes: {
     marginTop: 4,
     paddingVertical: 6,

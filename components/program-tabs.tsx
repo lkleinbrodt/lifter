@@ -4,7 +4,9 @@ import React, { useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Tabs, useRouter } from 'expo-router';
 
+import { ActiveWorkoutBar } from '@/components/workout/active-workout-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BottomTabBar } from '@react-navigation/bottom-tabs';
 import { HapticTab } from '@/components/haptic-tab';
 
 export type ProgramTab = {
@@ -36,6 +38,12 @@ export function ProgramTabs({ basePath, lastTabKey, tabs }: ProgramTabsProps) {
   return (
     <Tabs
       initialRouteName="index"
+      tabBar={(props) => (
+        <View>
+          <ActiveWorkoutBar />
+          <BottomTabBar {...props} />
+        </View>
+      )}
       screenListeners={({ route }) => ({
         focus: () => {
           AsyncStorage.setItem(lastTabKey, route.name);

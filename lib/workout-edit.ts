@@ -162,3 +162,10 @@ export function formatDuration(totalSec: number) {
   const s = totalSec % 60;
   return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}`;
 }
+
+/** Workout length for lists: "58m", "1h 8m". */
+export function formatMinutes(totalSec: number) {
+  const minutes = Math.round(totalSec / 60);
+  const h = Math.floor(minutes / 60);
+  return h > 0 ? `${h}h ${minutes % 60}m` : `${minutes}m`;
+}

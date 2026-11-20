@@ -8,6 +8,9 @@ import { loadGslpState, saveGslpState } from './gslp-storage';
 import type { ProgressionLine } from './program-module';
 import { type Workout, type WorkoutSet, newId } from './workout';
 import { finalizeWorkout } from './workout-edit';
+import { setActiveWorkout } from './session-store';
+
+const summaryOf = (w: Workout) => ({ id: w.id, name: w.name, startedAt: w.startedAt });
 
 /** Sets from the latest finished session of an exercise (before `before`, if given). */
 export async function lastSetsFor(exerciseId: string, before?: string): Promise<WorkoutSet[]> {
@@ -21,6 +24,7 @@ export async function startGslpWorkout(template?: string): Promise<Workout> {
     lastSets: (id) => lastSetsFor(id),
   });
   await saveWorkout(workout);
+  setActiveWorkout(summaryOf(workout));
   return workout;
 }
 
@@ -33,6 +37,7 @@ export async function startEmptyWorkout(): Promise<Workout> {
     exercises: [],
   };
   await saveWorkout(workout);
+  setActiveWorkout(summaryOf(workout));
   return workout;
 }
 
@@ -51,6 +56,7 @@ export async function finishWorkout(
     summary = result.summary;
   }
   await saveWorkout(finished);
+  setActiveWorkout(null);
   return { workout: finished, summary };
 }
 
@@ -68,9 +74,23 @@ export async function reopenGslpWorkout(workoutId: string): Promise<Workout | nu
   if (!workout) return null;
   const reopened = { ...workout, finishedAt: undefined };
   await saveWorkout(reopened);
+  setActiveWorkout(summaryOf(reopened));
   return reopened;
 }
 
 export async function discardWorkout(workoutId: string) {
   await deleteWorkout(workoutId);
+  setActiveWorkout(null);
+}
+
+/**
+ * Deletes a finished workout from the log. If it's the latest GSLP session, its
+ * progression is undone too; older sessions keep their progression history.
+ */
+export async function deleteFinishedWorkout(workoutId: string): Promise<{ undidProgression: boolean }> {
+  const state = await loadGslpState();
+  const undid = state.history.at(-1)?.workoutId === workoutId;
+  if (undid) await saveGslpState(undoLastSession(state));
+  await deleteWorkout(workoutId);
+  return { undidProgression: undid };
 }

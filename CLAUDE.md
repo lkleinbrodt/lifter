@@ -70,10 +70,11 @@ app/                      # Screens (Expo Router file-based routing)
     workout/[slug].tsx    # Workout detail, e.g. /531/workout/1-squat
   gslp/                   # GSLP side
     _layout.tsx           # Stack: (tabs)
-    (tabs)/               # Tabs: Weights, Workouts (start screen: next up / other / empty), Exercises
+    (tabs)/               # Tabs: Weights, Workouts (start screen: next up / other / empty), History, Exercises
 components/               # Reusable React components
   ui/                     # Base primitives (Button, Card, Input, icons, collapsible)
-  workout/                # Workout screen pieces: exercise card, set row, exercise picker, history sheet
+  workout/                # Workout screen pieces: exercise card, set row, picker, history sheet, rest bar, active-workout bar
+  workout-history.tsx     # History tab: every logged workout, newest first
   program-tabs.tsx        # Shared tab navigator used by both programs (remembers last tab)
   program-header.tsx      # Screen title + program-switch chip
   exercise-library.tsx    # Exercise library screen, mounted in both programs' tabs
@@ -96,7 +97,8 @@ lib/                      # Core business logic
   gslp-program.ts         # GSLP's ProgramModule
   strong-import.ts        # Strong CSV export → Workouts (pure)
   workout-edit.ts         # Pure edits on a Workout (sets, swap, finalize, stats, Previous-column matching)
-  workout-actions.ts      # Workout lifecycle against storage: start, finish (+ progression), reopen, discard
+  workout-actions.ts      # Workout lifecycle against storage: start, finish (+ progression), reopen, discard, delete
+  session-store.ts        # App-wide active workout + rest timer (useSession), local rest notifications
 hooks/                    # Custom React hooks (color scheme, theme color)
 constants/
   theme.ts                # Design system: colors, fonts, layout, shadows
@@ -133,6 +135,7 @@ Shared AsyncStorage keys:
 GSLP keys:
 - `@gslp_state` — `{ weights: Record<GslpLiftKey, number>, pullVariant: 'latPulldown' | 'chinup', accessoryPicks: Partial<Record<AccessoryArchetype, string>>, history: GslpSessionLog[] }`
 - The in-progress workout lives in SQLite (the one `workouts` row with no `finished_at`), saved on every edit.
+- `@rest_timer` — the running rest timer (`endsAt`, `durationSec`), so it survives a relaunch
 
 ### GSLP Program Logic (`lib/gslp.ts`)
 - **Rotation**: strict A/B alternation (A/B/A, then B/A/B). The next workout is the opposite of the last logged one. Week/day come from the session index (3 per week).
