@@ -3,9 +3,11 @@
 
 import { getExercise } from './exercises';
 import {
+  type AccessoryArchetype,
   type AccessorySlot,
   type GslpLift,
   type GslpLiftKey,
+  type GslpSessionLog,
   type GslpState,
   type GslpWorkoutKey,
   type LiftResult,
@@ -25,6 +27,7 @@ import {
 } from './gslp';
 import type { PlanContext, ProgramModule, ProgressionLine } from './program-module';
 import { type Workout, type WorkoutExercise, type WorkoutSet, isWorkingSet, newId } from './workout';
+import { setsFromLast } from './workout-edit';
 
 const isTemplate = (value: string): value is GslpWorkoutKey => value === 'A' || value === 'B';
 
@@ -50,22 +53,6 @@ function mainLiftExercise(lift: GslpLift, weight: number, supersetGroup?: string
   return { id: newId(), exerciseId: lift.exerciseId, slot: lift.key, supersetGroup, sets: [...warmups, ...work] };
 }
 
-/** Repeats last session's working sets as today's starting point (accessories, partners). */
-function repeatLast(exerciseId: string, last: WorkoutSet[], fallbackSets = 3): WorkoutSet[] {
-  const working = last.filter(isWorkingSet);
-  if (working.length === 0) {
-    return Array.from({ length: fallbackSets }, () => ({ id: newId(), type: 'work' as const, done: false }));
-  }
-  return working.map((set) => ({
-    id: newId(),
-    type: 'work' as const,
-    weight: set.weight,
-    reps: set.reps,
-    durationSec: set.durationSec,
-    done: false,
-  }));
-}
-
 async function plan(state: GslpState, template: string, ctx: PlanContext): Promise<Workout> {
   if (!isTemplate(template)) throw new Error(`Unknown GSLP template: ${template}`);
   const config = gslpWorkouts[template];
@@ -84,7 +71,7 @@ async function plan(state: GslpState, template: string, ctx: PlanContext): Promi
         exerciseId: partnerId,
         slot: `partner:${lift.key}`,
         supersetGroup: group,
-        sets: repeatLast(partnerId, await ctx.lastSets(partnerId)),
+        sets: setsFromLast(await ctx.lastSets(partnerId)),
       });
     }
   }
@@ -96,7 +83,7 @@ async function plan(state: GslpState, template: string, ctx: PlanContext): Promi
       id: newId(),
       exerciseId,
       slot: accessorySlotKey(slot),
-      sets: repeatLast(exerciseId, await ctx.lastSets(exerciseId)),
+      sets: setsFromLast(await ctx.lastSets(exerciseId)),
     });
   }
 
@@ -114,6 +101,26 @@ function progressionSet(exercise: WorkoutExercise | undefined): WorkoutSet | und
   if (!exercise) return undefined;
   const working = exercise.sets.filter((set) => isWorkingSet(set) && set.done);
   return working.find((set) => set.type === 'amrap') ?? working.at(-1);
+}
+
+function summarizeLog(log: GslpSessionLog): ProgressionLine[] {
+  return log.lifts.map((entry) => {
+    const lift = gslpLifts[entry.lift];
+    return {
+      label: lift.label,
+      before: formatLiftWeight(lift, entry.weight),
+      after: formatLiftWeight(lift, entry.nextWeight),
+      note: `${entry.amrapReps ?? '–'} reps · ${describeOutcome(entry.outcome, entry.weight, entry.nextWeight)}`,
+      tone: entry.nextWeight > entry.weight ? 'up' : entry.nextWeight < entry.weight ? 'down' : 'same',
+    };
+  });
+}
+
+/** The progression a finished workout produced, and whether it's still the latest (undoable). */
+export function gslpProgressionFor(state: GslpState, workoutId: string) {
+  const index = state.history.findIndex((log) => log.workoutId === workoutId);
+  if (index === -1) return undefined;
+  return { summary: summarizeLog(state.history[index]), isLatest: index === state.history.length - 1 };
 }
 
 function complete(state: GslpState, workout: Workout) {
@@ -140,18 +147,42 @@ function complete(state: GslpState, workout: Workout) {
     if (pooled) accessoryPicks[slot.archetype] = pooled.name;
   }
 
-  const summary: ProgressionLine[] = log.lifts.map((entry) => {
-    const lift = gslpLifts[entry.lift];
-    return {
-      label: lift.label,
-      before: formatLiftWeight(lift, entry.weight),
-      after: formatLiftWeight(lift, entry.nextWeight),
-      note: `${entry.amrapReps ?? '–'} reps · ${describeOutcome(entry.outcome, entry.weight, entry.nextWeight)}`,
-      tone: entry.nextWeight > entry.weight ? 'up' : entry.nextWeight < entry.weight ? 'down' : 'same',
-    };
-  });
+  const summary = summarizeLog(log);
 
   return { state: { ...next, accessoryPicks }, summary };
+}
+
+const isAccessorySlot = (slot: string | undefined): slot is `accessory:${AccessoryArchetype}` =>
+  !!slot?.startsWith('accessory:') && slot.slice('accessory:'.length) in accessoryArchetypes;
+
+/** For an accessory slot: its label and the archetype's exercise pool (catalog ids), for swap chips. */
+export function gslpSlotChoices(slot: string | undefined) {
+  if (!isAccessorySlot(slot)) return undefined;
+  const config = accessoryArchetypes[slot.slice('accessory:'.length) as AccessoryArchetype];
+  return { label: config.label, exerciseIds: config.exercises.map((exercise) => exercise.exerciseId) };
+}
+
+/** Describes a slot for the exercise card subtitle. */
+export function gslpSlotLabel(slot: string | undefined) {
+  if (!slot) return undefined;
+  if (slot in gslpLifts) return 'Main lift';
+  if (slot.startsWith('partner:')) {
+    const lift = gslpLifts[slot.slice('partner:'.length) as GslpLiftKey];
+    return lift ? `Superset with ${lift.label}` : undefined;
+  }
+  return gslpSlotChoices(slot)?.label;
+}
+
+/** Optional accessory slots (hamstrings on A) not yet in the workout, with their default pick. */
+export function gslpOptionalSlots(state: GslpState, workout: Workout) {
+  if (workout.source.kind !== 'program' || !isTemplate(workout.source.template)) return [];
+  return gslpWorkouts[workout.source.template].accessories
+    .filter((slot) => slot.optional && !workout.exercises.some((item) => item.slot === accessorySlotKey(slot)))
+    .map((slot) => ({
+      slot: accessorySlotKey(slot),
+      label: accessoryArchetypes[slot.archetype].label,
+      exerciseId: pickedAccessory(state.accessoryPicks, slot.archetype).exerciseId,
+    }));
 }
 
 export const gslpProgram: ProgramModule<GslpState> = {

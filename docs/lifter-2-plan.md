@@ -2,7 +2,7 @@
 
 Turn Lifter from "tells me what to do" into the app I use *during* the workout, replacing Strong. Strong's common tracking features plus Lifter's program logic: the workout opens with today's prescribed numbers already filled in.
 
-Status: Phase 1 code done on `lifter-2/phase-1-foundation` (2026-11-20). It still needs the native build on the phone.
+Status (2026-11-20): Phase 1 is on `main` and installed on the phone (1.1.0), with Strong history imported. Phase 2 code is done on `lifter-2/phase-2-workout`; it ships OTA.
 
 ## Principles
 
@@ -170,6 +170,15 @@ Each phase is its own branch and PR.
 - Exercise history sheet.
 - Finish flow with the GSLP progression summary and undo.
 - **Done when:** a real gym session is logged in Lifter only.
+- **Built:**
+  - `app/workout/[id].tsx`, `components/workout/*`, `lib/workout-edit.ts`, `lib/workout-actions.ts`.
+  - The GSLP Workouts tab is now the start screen. The old `app/gslp/session.tsx` and the `@gslp_draft` key are gone.
+  - Undo on the latest GSLP session reopens its workout for editing.
+- **Notes:**
+  - Numeric fields clear on focus and keep the old value if left empty, so typing always replaces it.
+  - Main lifts can't be swapped, only removed (GSLP then counts that lift as missed).
+  - Imported Strong sessions don't flag warmups. The Previous column aligns working sets from the end, so the extra leading sets line up with today's W rows.
+  - Notes are per workout (a field under the title). Per-exercise notes are in the data model but have no UI yet.
 
 ### Phase 3: Workout comfort
 - Rest timer (inline bar, header pill, ±15s / Skip, notification when locked).

@@ -157,22 +157,32 @@ async function writeWorkouts(txn: Db, workouts: Workout[]) {
   );
 }
 
+// Every exclusive transaction opens its own connection, so two at once can collide
+// (SQLITE_BUSY) and one write is lost. All writes go through this queue, one at a time.
+let writeQueue: Promise<unknown> = Promise.resolve();
+
+function enqueueWrite<T>(task: (db: Db) => Promise<T>): Promise<T> {
+  const run = writeQueue.then(async () => task(await getDb()));
+  writeQueue = run.catch(() => undefined);
+  return run;
+}
+
 export async function saveWorkout(workout: Workout) {
   await saveWorkouts([workout]);
 }
 
 /** Writes workouts (and their exercises and sets) in one transaction, replacing any with the same id. */
-export async function saveWorkouts(workouts: Workout[]) {
-  const db = await getDb();
-  await db.withExclusiveTransactionAsync((txn) => writeWorkouts(txn as unknown as Db, workouts));
+export function saveWorkouts(workouts: Workout[]) {
+  return enqueueWrite((db) => db.withExclusiveTransactionAsync((txn) => writeWorkouts(txn as unknown as Db, workouts)));
 }
 
-export async function deleteWorkout(id: string) {
-  const db = await getDb();
-  await db.withExclusiveTransactionAsync(async (txn) => {
-    await deleteChildren(txn as unknown as Db, [id]);
-    await txn.runAsync('DELETE FROM workouts WHERE id = ?', id);
-  });
+export function deleteWorkout(id: string) {
+  return enqueueWrite((db) =>
+    db.withExclusiveTransactionAsync(async (txn) => {
+      await deleteChildren(txn as unknown as Db, [id]);
+      await txn.runAsync('DELETE FROM workouts WHERE id = ?', id);
+    }),
+  );
 }
 
 // ---- Reads ----

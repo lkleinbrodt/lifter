@@ -7,22 +7,12 @@ import {
   type GslpSessionLog,
   type GslpState,
   type GslpWorkoutKey,
-  type LiftResult,
   accessoryArchetypes,
   defaultGslpState,
   gslpLiftOrder,
 } from './gslp';
 
 const STATE_KEY = '@gslp_state';
-// In-progress session, so entered reps survive the app being killed mid-workout.
-const DRAFT_KEY = '@gslp_draft';
-
-export type GslpDraft = {
-  workout: GslpWorkoutKey;
-  sessionIndex: number;
-  startedAt?: string; // ISO; stamped on the history entry when the session finishes
-  results: Partial<Record<GslpLiftKey, LiftResult>>;
-};
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
@@ -81,29 +71,4 @@ export async function loadGslpState(): Promise<GslpState> {
 
 export async function saveGslpState(state: GslpState) {
   await AsyncStorage.setItem(STATE_KEY, JSON.stringify(state));
-}
-
-export async function loadGslpDraft(): Promise<GslpDraft | null> {
-  try {
-    const raw = await AsyncStorage.getItem(DRAFT_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!isRecord(parsed) || !isWorkoutKey(parsed.workout) || !isRecord(parsed.results)) return null;
-    return {
-      workout: parsed.workout,
-      sessionIndex: toNumber(parsed.sessionIndex),
-      startedAt: typeof parsed.startedAt === 'string' && !Number.isNaN(Date.parse(parsed.startedAt)) ? parsed.startedAt : undefined,
-      results: parsed.results as GslpDraft['results'],
-    };
-  } catch {
-    return null;
-  }
-}
-
-export async function saveGslpDraft(draft: GslpDraft) {
-  await AsyncStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-}
-
-export async function clearGslpDraft() {
-  await AsyncStorage.removeItem(DRAFT_KEY);
 }

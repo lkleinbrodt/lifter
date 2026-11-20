@@ -19,7 +19,10 @@ import {
   undoLastSession,
 } from '@/lib/gslp';
 import React, { useCallback, useState } from 'react';
-import { loadGslpDraft, loadGslpState, saveGslpState } from '@/lib/gslp-storage';
+import { getActiveWorkout, reopenGslpWorkout, startEmptyWorkout, startGslpWorkout } from '@/lib/workout-actions';
+import { loadGslpState, saveGslpState } from '@/lib/gslp-storage';
+
+import type { Workout } from '@/lib/workout';
 
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -38,40 +41,75 @@ export default function GslpWorkoutsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [state, setState] = useState<GslpState>(defaultGslpState);
-  const [hasDraft, setHasDraft] = useState(false);
+  const [active, setActive] = useState<Workout | null>(null);
+  const [starting, setStarting] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useFocusEffect(
     useCallback(() => {
-      let active = true;
-      Promise.all([loadGslpState(), loadGslpDraft()]).then(([stored, draft]) => {
-        if (active) {
+      let mounted = true;
+      Promise.all([loadGslpState(), getActiveWorkout()]).then(([stored, current]) => {
+        if (mounted) {
           setState(stored);
-          setHasDraft(draft?.sessionIndex === stored.history.length);
+          setActive(current);
           setLoading(false);
         }
       });
       return () => {
-        active = false;
+        mounted = false;
       };
     }, []),
   );
 
+  const start = useCallback(
+    async (begin: () => Promise<Workout>) => {
+      if (active) {
+        router.push(`/workout/${active.id}`);
+        return;
+      }
+      setStarting(true);
+      try {
+        const workout = await begin();
+        router.push(`/workout/${workout.id}`);
+      } finally {
+        setStarting(false);
+      }
+    },
+    [active, router],
+  );
+
   const handleUndo = useCallback(() => {
-    Alert.alert('Undo last session?', 'Removes it from history and restores the weights it started from.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Undo',
-        style: 'destructive',
-        onPress: async () => {
-          const next = undoLastSession(state);
-          setState(next);
-          await saveGslpState(next);
-          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    const workoutId = state.history.at(-1)?.workoutId;
+    Alert.alert(
+      'Undo last session?',
+      workoutId
+        ? 'Restores the weights it started from and reopens the workout so you can edit it.'
+        : 'Removes it from history and restores the weights it started from.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Undo',
+          style: 'destructive',
+          onPress: async () => {
+            if (workoutId) {
+              const reopened = await reopenGslpWorkout(workoutId);
+              if (!reopened) {
+                Alert.alert("Can't undo", 'Finish or discard the workout in progress first.');
+                return;
+              }
+              setState(await loadGslpState());
+              router.push(`/workout/${workoutId}`);
+            } else {
+              const next = undoLastSession(state);
+              setState(next);
+              await saveGslpState(next);
+            }
+            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+          },
         },
-      },
-    ]);
-  }, [state]);
+      ],
+    );
+  }, [router, state]);
 
   if (loading) {
     return (
@@ -125,7 +163,7 @@ export default function GslpWorkoutsScreen() {
             })}
           </View>
 
-          <Pressable onPress={() => router.push('/gslp/session')} accessibilityRole="button">
+          <Pressable onPress={() => start(() => startGslpWorkout(next.workout))} disabled={weightsMissing || starting} accessibilityRole="button">
             {({ pressed }) => (
               <Card style={[styles.nextCard, pressed && styles.pressed]}>
                 <ThemedText type="label" style={styles.tintLabel}>
@@ -146,16 +184,35 @@ export default function GslpWorkoutsScreen() {
                   ))}
                 </View>
                 <Button
-                  title={hasDraft ? 'Resume Session' : 'Start Session'}
-                  onPress={() => router.push('/gslp/session')}
+                  title={active ? 'Resume Workout' : 'Start Workout'}
+                  loading={starting}
+                  disabled={weightsMissing && !active}
+                  onPress={() => start(() => startGslpWorkout(next.workout))}
                 />
               </Card>
             )}
           </Pressable>
 
-          <ThemedText style={styles.subtle}>
-            Then {gslpWorkouts[nextWorkoutKey(next.workout)].label}. Three sessions a week on non-consecutive days.
-          </ThemedText>
+          {active ? (
+            <ThemedText style={styles.subtle}>Workout in progress: {active.name}. Finish or discard it to start another.</ThemedText>
+          ) : (
+            <View style={styles.altRow}>
+              <Button
+                title={`Do ${gslpWorkouts[nextWorkoutKey(next.workout)].label.replace('Workout ', '')} instead`}
+                variant="secondary"
+                disabled={weightsMissing || starting}
+                style={styles.altButton}
+                onPress={() => start(() => startGslpWorkout(nextWorkoutKey(next.workout)))}
+              />
+              <Button
+                title="Empty workout"
+                variant="secondary"
+                disabled={starting}
+                style={styles.altButton}
+                onPress={() => start(startEmptyWorkout)}
+              />
+            </View>
+          )}
 
           <ThemedText type="subtitle" style={styles.historyTitle}>
             History
@@ -284,6 +341,13 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.9,
+  },
+  altRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  altButton: {
+    flex: 1,
   },
   liftList: {
     gap: 8,
