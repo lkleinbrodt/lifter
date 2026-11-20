@@ -71,67 +71,108 @@ async function open() {
 
 // ---- Writes ----
 
-async function insertWorkout(txn: Db, workout: Workout) {
-  await txn.runAsync(
-    `INSERT OR REPLACE INTO workouts (id, name, started_at, finished_at, source_kind, source_json, notes)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    workout.id,
-    workout.name,
-    workout.startedAt,
-    workout.finishedAt ?? null,
-    workout.source.kind,
-    JSON.stringify(workout.source),
-    workout.notes ?? null,
-  );
-  // Children are rewritten wholesale; a workout is small and this keeps edits simple.
-  await txn.runAsync('DELETE FROM workout_exercises WHERE workout_id = ?', workout.id);
-  for (const [position, exercise] of workout.exercises.entries()) {
+type Value = string | number | null;
+
+// Exclusive transactions run on their own connection, where foreign_keys is off, so
+// ON DELETE CASCADE can't be relied on. Delete children explicitly.
+async function deleteChildren(txn: Db, workoutIds: string[]) {
+  for (let i = 0; i < workoutIds.length; i += 999) {
+    const chunk = workoutIds.slice(i, i + 999);
+    const marks = chunk.map(() => '?').join(',');
     await txn.runAsync(
-      `INSERT INTO workout_exercises (id, workout_id, position, exercise_id, slot, superset_group, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      exercise.id,
-      workout.id,
-      position,
-      exercise.exerciseId,
-      exercise.slot ?? null,
-      exercise.supersetGroup ?? null,
-      exercise.notes ?? null,
+      `DELETE FROM sets WHERE workout_exercise_id IN (SELECT id FROM workout_exercises WHERE workout_id IN (${marks}))`,
+      chunk,
     );
-    for (const [setPosition, set] of exercise.sets.entries()) {
-      await txn.runAsync(
-        `INSERT INTO sets (id, workout_exercise_id, position, type, weight, reps, duration_sec, target_json, done, completed_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        set.id,
-        exercise.id,
-        setPosition,
-        set.type,
-        set.weight ?? null,
-        set.reps ?? null,
-        set.durationSec ?? null,
-        set.target ? JSON.stringify(set.target) : null,
-        set.done ? 1 : 0,
-        set.completedAt ?? null,
-      );
-    }
+    await txn.runAsync(`DELETE FROM workout_exercises WHERE workout_id IN (${marks})`, chunk);
   }
 }
 
-export async function saveWorkout(workout: Workout) {
-  const db = await getDb();
-  await db.withExclusiveTransactionAsync((txn) => insertWorkout(txn as unknown as Db, workout));
+// Each statement crosses the JS/native bridge, so rows go in as multi-row INSERTs.
+// Chunks stay under SQLite's conservative 999-variable limit.
+async function insertRows(txn: Db, table: string, columns: string[], rows: Value[][], verb = 'INSERT') {
+  const perChunk = Math.floor(999 / columns.length);
+  const placeholder = `(${columns.map(() => '?').join(', ')})`;
+  for (let i = 0; i < rows.length; i += perChunk) {
+    const chunk = rows.slice(i, i + perChunk);
+    await txn.runAsync(
+      `${verb} INTO ${table} (${columns.join(', ')}) VALUES ${chunk.map(() => placeholder).join(', ')}`,
+      chunk.flat(),
+    );
+  }
 }
 
-/** Writes many workouts in one transaction (used by imports). */
+async function writeWorkouts(txn: Db, workouts: Workout[]) {
+  if (workouts.length === 0) return;
+  await insertRows(
+    txn,
+    'workouts',
+    ['id', 'name', 'started_at', 'finished_at', 'source_kind', 'source_json', 'notes'],
+    workouts.map((w) => [w.id, w.name, w.startedAt, w.finishedAt ?? null, w.source.kind, JSON.stringify(w.source), w.notes ?? null]),
+    'INSERT OR REPLACE',
+  );
+
+  // Children are rewritten wholesale; a workout is small and this keeps edits simple.
+  await deleteChildren(txn, workouts.map((w) => w.id));
+
+  const exerciseRows: Value[][] = [];
+  const setRows: Value[][] = [];
+  for (const workout of workouts) {
+    for (const [position, exercise] of workout.exercises.entries()) {
+      exerciseRows.push([
+        exercise.id,
+        workout.id,
+        position,
+        exercise.exerciseId,
+        exercise.slot ?? null,
+        exercise.supersetGroup ?? null,
+        exercise.notes ?? null,
+      ]);
+      for (const [setPosition, set] of exercise.sets.entries()) {
+        setRows.push([
+          set.id,
+          exercise.id,
+          setPosition,
+          set.type,
+          set.weight ?? null,
+          set.reps ?? null,
+          set.durationSec ?? null,
+          set.target ? JSON.stringify(set.target) : null,
+          set.done ? 1 : 0,
+          set.completedAt ?? null,
+        ]);
+      }
+    }
+  }
+  await insertRows(
+    txn,
+    'workout_exercises',
+    ['id', 'workout_id', 'position', 'exercise_id', 'slot', 'superset_group', 'notes'],
+    exerciseRows,
+  );
+  await insertRows(
+    txn,
+    'sets',
+    ['id', 'workout_exercise_id', 'position', 'type', 'weight', 'reps', 'duration_sec', 'target_json', 'done', 'completed_at'],
+    setRows,
+  );
+}
+
+export async function saveWorkout(workout: Workout) {
+  await saveWorkouts([workout]);
+}
+
+/** Writes workouts (and their exercises and sets) in one transaction, replacing any with the same id. */
 export async function saveWorkouts(workouts: Workout[]) {
   const db = await getDb();
-  await db.withExclusiveTransactionAsync(async (txn) => {
-    for (const workout of workouts) await insertWorkout(txn as unknown as Db, workout);
-  });
+  await db.withExclusiveTransactionAsync((txn) => writeWorkouts(txn as unknown as Db, workouts));
 }
 
 export async function deleteWorkout(id: string) {
   const db = await getDb();
-  await db.runAsync('DELETE FROM workouts WHERE id = ?', id);
+  await db.withExclusiveTransactionAsync(async (txn) => {
+    await deleteChildren(txn as unknown as Db, [id]);
+    await txn.runAsync('DELETE FROM workouts WHERE id = ?', id);
+  });
 }
 
 // ---- Reads ----

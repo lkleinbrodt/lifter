@@ -28,6 +28,7 @@ export default function ImportStrongScreen() {
   const [gslp, setGslp] = useState<GslpState>(defaultGslpState);
   const [parsed, setParsed] = useState<StrongImport | null>(null);
   const [status, setStatus] = useState('');
+  const [importing, setImporting] = useState(false);
 
   useEffect(() => {
     countWorkouts().then(setStored);
@@ -50,11 +51,19 @@ export default function ImportStrongScreen() {
   };
 
   const runImport = async () => {
-    if (!parsed) return;
-    setStatus('Importing…');
-    await saveWorkouts(parsed.workouts);
-    setStored(await countWorkouts());
-    setStatus(`Imported ${parsed.workouts.length} workouts.`);
+    if (!parsed || importing) return;
+    setImporting(true);
+    setStatus('');
+    const started = Date.now();
+    try {
+      await saveWorkouts(parsed.workouts);
+      setStored(await countWorkouts());
+      setStatus(`Imported ${parsed.workouts.length} workouts in ${((Date.now() - started) / 1000).toFixed(1)}s.`);
+    } catch (error) {
+      setStatus(`Import failed: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setImporting(false);
+    }
   };
 
   const lifterNext = nextSession(gslp).workout;
@@ -65,7 +74,12 @@ export default function ImportStrongScreen() {
       <ThemedView style={styles.container}>
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
           <ThemedText style={styles.muted}>Workouts in the log: {stored ?? '…'}</ThemedText>
-          <Button title={parsed ? 'Choose a different CSV' : 'Choose Strong CSV'} variant="secondary" onPress={pick} />
+          <Button
+            title={parsed ? 'Choose a different CSV' : 'Choose Strong CSV'}
+            variant="secondary"
+            disabled={importing}
+            onPress={pick}
+          />
 
           {parsed ? (
             <Card style={styles.card}>
@@ -89,7 +103,7 @@ export default function ImportStrongScreen() {
                   ))}
                 </>
               ) : (
-                <Button title={`Import ${parsed.workouts.length} workouts`} onPress={runImport} />
+                <Button title={`Import ${parsed.workouts.length} workouts`} loading={importing} onPress={runImport} />
               )}
             </Card>
           ) : null}

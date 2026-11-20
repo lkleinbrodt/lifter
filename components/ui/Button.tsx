@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import { Pressable, StyleSheet, type ViewStyle } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { Colors, Fonts, Layout, Shadows } from '@/constants/theme';
 import { ThemedText } from '../themed-text';
@@ -9,36 +9,41 @@ type ButtonProps = {
   onPress: () => void;
   variant?: 'primary' | 'secondary' | 'danger';
   disabled?: boolean;
+  loading?: boolean; // shows a spinner and ignores presses, keeping the button's look
   style?: ViewStyle;
 };
 
-export function Button({ title, onPress, variant = 'primary', disabled, style }: ButtonProps) {
+export function Button({ title, onPress, variant = 'primary', disabled, loading, style }: ButtonProps) {
+  const inactive = disabled || loading;
+  const textColor = variant === 'primary' ? Colors.dark.background : Colors.dark.text;
   return (
     <Pressable
       onPress={() => {
-        if (!disabled) {
+        if (!inactive) {
           void Haptics.selectionAsync();
           onPress();
         }
       }}
-      disabled={disabled}
+      disabled={inactive}
+      accessibilityState={{ disabled: inactive, busy: loading }}
       style={({ pressed }) => [
         styles.base,
         variant === 'primary' && styles.primary,
         variant === 'secondary' && styles.secondary,
         disabled && styles.disabled,
-        pressed && !disabled && styles.pressed,
+        loading && styles.loading,
+        pressed && !inactive && styles.pressed,
         style,
       ]}>
-      <ThemedText
-        type="defaultSemiBold"
-        style={[
-          styles.text,
-          variant === 'primary' && { color: Colors.dark.background },
-          variant === 'secondary' && { color: Colors.dark.text },
-        ]}>
-        {title}
-      </ThemedText>
+      {loading ? (
+        <View style={styles.spinnerRow}>
+          <ActivityIndicator color={textColor} />
+        </View>
+      ) : (
+        <ThemedText type="defaultSemiBold" style={[styles.text, variant !== 'danger' && { color: textColor }]}>
+          {title}
+        </ThemedText>
+      )}
     </Pressable>
   );
 }
@@ -62,6 +67,13 @@ const styles = StyleSheet.create({
   disabled: {
     backgroundColor: Colors.dark.surfaceHighlight,
     opacity: 0.5,
+  },
+  loading: {
+    opacity: 0.8,
+  },
+  spinnerRow: {
+    height: 20, // about the title's line height, so the button doesn't jump
+    justifyContent: 'center',
   },
   pressed: {
     opacity: 0.9,
