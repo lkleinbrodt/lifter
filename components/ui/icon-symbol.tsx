@@ -34,6 +34,7 @@ const MAPPING = {
   'xmark': 'close',
   'magnifyingglass': 'search',
   'clock.arrow.circlepath': 'history',
+  'gearshape': 'settings',
 } as IconMapping;
 
 /**

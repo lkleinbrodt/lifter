@@ -18,7 +18,6 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View
 import React, { useCallback, useState } from 'react';
 import { loadGslpState, saveGslpState } from '@/lib/gslp-storage';
 
-import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Colors } from '@/constants/theme';
 import { Input } from '@/components/ui/Input';
@@ -27,7 +26,6 @@ import { SafeAreaContainer } from '@/components/safe-area';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useFocusEffect } from '@react-navigation/native';
-import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const MAX_WEIGHT = 1500;
@@ -35,7 +33,6 @@ const pullOptions: PullVariant[] = ['latPulldown', 'chinup'];
 
 export default function GslpWeightsScreen() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const [state, setState] = useState<GslpState>(defaultGslpState);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState('');
@@ -178,7 +175,6 @@ export default function GslpWeightsScreen() {
 
               {status ? <ThemedText style={styles.status}>{status}</ThemedText> : null}
 
-              <Button title="Import Strong history" variant="secondary" onPress={() => router.push('/import-strong')} />
             </ScrollView>
           </KeyboardAvoidingView>
         </ThemedView>

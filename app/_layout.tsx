@@ -32,6 +32,7 @@ export default function RootLayout() {
           <Stack.Screen name="gslp" options={{ headerShown: false, animation: 'fade' }} />
           <Stack.Screen name="archetype/[name]" options={detailHeaderOptions} />
           <Stack.Screen name="import-strong" options={detailHeaderOptions} />
+          <Stack.Screen name="settings" options={detailHeaderOptions} />
           <Stack.Screen name="workout/[id]" options={{ ...detailHeaderOptions, title: '' }} />
         </Stack>
         <StatusBar style="light" />

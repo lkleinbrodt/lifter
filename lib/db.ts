@@ -308,6 +308,18 @@ export async function countWorkouts(): Promise<number> {
   return row?.n ?? 0;
 }
 
+/** Row counts and schema version, for the diagnostics page. */
+export async function dbStats() {
+  const db = await getDb();
+  const one = async (sql: string) => (await db.getFirstAsync<{ n: number }>(sql))?.n ?? 0;
+  return {
+    workouts: await one('SELECT COUNT(*) AS n FROM workouts WHERE finished_at IS NOT NULL'),
+    imported: await one("SELECT COUNT(*) AS n FROM workouts WHERE source_kind = 'import'"),
+    sets: await one('SELECT COUNT(*) AS n FROM sets'),
+    schemaVersion: (await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version'))?.user_version ?? 0,
+  };
+}
+
 export type ExerciseSession = { workoutId: string; workoutName: string; startedAt: string; sets: WorkoutSet[] };
 
 /** Past sessions of one exercise, newest first. Feeds "Previous" (limit 1) and the history sheet. */

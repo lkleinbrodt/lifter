@@ -360,19 +360,16 @@ export default function WorkoutScreen() {
       <Stack.Screen
         options={{
           title: finished ? (editing ? 'Edit Workout' : 'Summary') : formatDuration(stats.durationSec),
-          headerRight: finished
-            ? editing
-              ? () => (
-                  <Pressable onPress={stopEditing} hitSlop={8} style={styles.finishButton}>
-                    <ThemedText style={styles.finishText}>Save</ThemedText>
+          // Plain text, no background: iOS 26 already draws a glass capsule around header items,
+          // and a filled pill inside it shows as a double ring.
+          headerRight:
+            finished && !editing
+              ? undefined
+              : () => (
+                  <Pressable onPress={editing ? stopEditing : finish} disabled={busy} hitSlop={8} style={styles.headerButton}>
+                    <ThemedText style={styles.headerButtonText}>{editing ? 'Save' : 'Finish'}</ThemedText>
                   </Pressable>
-                )
-              : undefined
-            : () => (
-                <Pressable onPress={finish} disabled={busy} hitSlop={8} style={styles.finishButton}>
-                  <ThemedText style={styles.finishText}>Finish</ThemedText>
-                </Pressable>
-              ),
+                ),
         }}
       />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
@@ -539,13 +536,8 @@ const styles = StyleSheet.create({
   small: { color: Colors.dark.textMuted, fontSize: 12 },
   up: { color: Colors.dark.tint },
   down: { color: Colors.dark.error },
-  finishButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 10,
-    backgroundColor: Colors.dark.tint,
-  },
-  finishText: { color: Colors.dark.background, fontWeight: '600' },
+  headerButton: { paddingHorizontal: 8 },
+  headerButtonText: { color: Colors.dark.tint, fontWeight: '700' },
   summary: { gap: 14 },
   statsRow: { flexDirection: 'row', justifyContent: 'space-between' },
   stat: { gap: 4 },

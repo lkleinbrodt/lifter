@@ -19,22 +19,38 @@ export function ProgramHeader({ title }: { title: string }) {
       <ThemedText type="display" style={styles.title}>
         {title}
       </ThemedText>
-      {program ? (
+      <View style={styles.actions}>
+        {program ? (
+          <Pressable
+            onPress={() => router.replace('/')}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Switch program">
+            {({ pressed }) => (
+              <View style={[styles.chip, pressed && styles.chipPressed]}>
+                <ThemedText type="label" style={styles.chipText}>
+                  {program.name}
+                </ThemedText>
+                <IconSymbol name="arrow.left.arrow.right" size={14} color={Colors.dark.tint} />
+              </View>
+            )}
+          </Pressable>
+        ) : null}
         <Pressable
-          onPress={() => router.replace('/')}
+          onPress={() => router.push('/settings')}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel="Switch program">
+          accessibilityLabel="Settings">
           {({ pressed }) => (
-            <View style={[styles.chip, pressed && styles.chipPressed]}>
-              <ThemedText type="label" style={styles.chipText}>
-                {program.name}
-              </ThemedText>
-              <IconSymbol name="arrow.left.arrow.right" size={14} color={Colors.dark.tint} />
-            </View>
+            <IconSymbol
+              name="gearshape"
+              size={22}
+              color={Colors.dark.textMuted}
+              style={pressed && styles.chipPressed}
+            />
           )}
         </Pressable>
-      ) : null}
+      </View>
     </View>
   );
 }
@@ -48,6 +64,11 @@ const styles = StyleSheet.create({
   },
   title: {
     flexShrink: 1,
+  },
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
   },
   chip: {
     flexDirection: 'row',
