@@ -2,7 +2,7 @@
 
 Turn Lifter from "tells me what to do" into the app I use *during* the workout, replacing Strong. Strong's common tracking features plus Lifter's program logic: the workout opens with today's prescribed numbers already filled in.
 
-Status: planned 2026-11-20. Nothing built yet.
+Status: Phase 1 code done on `lifter-2/phase-1-foundation` (2026-11-20). It still needs the native build on the phone.
 
 ## Principles
 
@@ -42,7 +42,7 @@ Status: planned 2026-11-20. Nothing built yet.
 
 ## Data model
 
-Exercise catalog lives in code (`lib/exercises.ts`), replacing `exercises-data.ts` and the name lists inside `gslp.ts`:
+Exercise catalog lives in code (`lib/exercises.ts`). GSLP lifts and accessory pools reference it by `exerciseId`. The old `exercises-data.ts` still feeds the Exercises tab until Phase 2 replaces that screen with the catalog-backed picker.
 
 ```ts
 type TrackingType =
@@ -50,8 +50,7 @@ type TrackingType =
   | 'addedWeightReps' // chin-up, dip: weight = added load, 0 = bodyweight
   | 'assistedReps'    // assisted dip: weight = assistance
   | 'reps'            // 90-90 situps, hanging leg raise
-  | 'duration'        // plank
-  | 'weightDuration'; // carries
+  | 'duration';       // plank (carries are weight × reps, matching the Strong data)
 
 type Exercise = {
   id: string;            // stable slug, e.g. 'bench-press-barbell'
@@ -157,6 +156,13 @@ Each phase is its own branch and PR.
 - Strong parser and import screen.
 - Add `expo-sqlite`, `expo-notifications`, `expo-document-picker`. Bump `version` to 1.1.0, then `npm run release:ios:full`.
 - **Done when:** the phone has the new build, Strong history is imported (97 workouts), and the GSLP plan for the next session matches today's Lifter numbers.
+- **Built:**
+  - `lib/exercises.ts`, `lib/workout.ts`, `lib/db.ts`, `lib/program-module.ts`, `lib/gslp-program.ts`, `lib/strong-import.ts`.
+  - `app/import-strong.tsx`, linked from the GSLP Weights tab.
+  - Verified in the simulator: the import is idempotent, and the plan and progression were checked against the real CSV.
+- **Notes:**
+  - GSLP's optional hamstring slot isn't planned by default; the workout screen will offer to add it.
+  - The web build no longer bundles, because expo-sqlite needs wasm/COEP setup there. Not worth fixing for a phone-only app.
 
 ### Phase 2: Run a GSLP workout end to end (the switch-off-Strong milestone)
 - Start tab (Next up, other template, empty workout).

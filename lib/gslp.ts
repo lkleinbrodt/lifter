@@ -9,6 +9,7 @@ export type GslpWorkoutKey = 'A' | 'B';
 
 export type GslpLift = {
   key: GslpLiftKey;
+  exerciseId: string; // catalog id in exercises.ts
   label: string;
   region: 'upper' | 'lower';
   equipment: 'barbell' | 'machine' | 'bodyweight';
@@ -21,6 +22,7 @@ export type GslpLift = {
 export const gslpLifts: Record<GslpLiftKey, GslpLift> = {
   ohp: {
     key: 'ohp',
+    exerciseId: 'overhead-press-barbell',
     label: 'Overhead Press',
     region: 'upper',
     equipment: 'barbell',
@@ -31,6 +33,7 @@ export const gslpLifts: Record<GslpLiftKey, GslpLift> = {
   },
   chinup: {
     key: 'chinup',
+    exerciseId: 'chin-up',
     label: 'Chin-Up',
     region: 'upper',
     equipment: 'bodyweight',
@@ -41,6 +44,7 @@ export const gslpLifts: Record<GslpLiftKey, GslpLift> = {
   },
   latPulldown: {
     key: 'latPulldown',
+    exerciseId: 'lat-pulldown-cable',
     label: 'Lat Pulldown',
     region: 'upper',
     equipment: 'machine',
@@ -51,6 +55,7 @@ export const gslpLifts: Record<GslpLiftKey, GslpLift> = {
   },
   squat: {
     key: 'squat',
+    exerciseId: 'squat-barbell',
     label: 'Squat',
     region: 'lower',
     equipment: 'barbell',
@@ -61,6 +66,7 @@ export const gslpLifts: Record<GslpLiftKey, GslpLift> = {
   },
   bench: {
     key: 'bench',
+    exerciseId: 'bench-press-barbell',
     label: 'Bench Press',
     region: 'upper',
     equipment: 'barbell',
@@ -71,6 +77,7 @@ export const gslpLifts: Record<GslpLiftKey, GslpLift> = {
   },
   row: {
     key: 'row',
+    exerciseId: 'bent-over-row-barbell',
     label: 'Barbell Row',
     region: 'upper',
     equipment: 'barbell',
@@ -81,6 +88,7 @@ export const gslpLifts: Record<GslpLiftKey, GslpLift> = {
   },
   deadlift: {
     key: 'deadlift',
+    exerciseId: 'deadlift-barbell',
     label: 'Deadlift',
     region: 'lower',
     equipment: 'barbell',
@@ -108,6 +116,7 @@ export type AccessoryArchetype =
 export type Equipment = 'bodyweight' | 'band' | 'cable' | 'machine' | 'dumbbell' | 'barbell';
 
 export type AccessoryExercise = {
+  exerciseId: string; // catalog id in exercises.ts
   name: string;
   equipment: Equipment;
   timed?: boolean; // isometrics and carries are done for time
@@ -128,20 +137,20 @@ export const accessoryArchetypes: Record<AccessoryArchetype, AccessoryArchetypeC
     label: 'Horizontal Push',
     prescription: STANDARD_PRESCRIPTION,
     exercises: [
-      { name: 'Push-Ups on Handles', equipment: 'bodyweight' },
-      { name: 'Assisted Dips', equipment: 'machine' },
-      { name: 'DB Floor Press', equipment: 'dumbbell' },
-      { name: 'Machine Chest Press', equipment: 'machine' },
+      { exerciseId: 'push-up', name: 'Push-Ups on Handles', equipment: 'bodyweight' },
+      { exerciseId: 'chest-dip-assisted', name: 'Assisted Dips', equipment: 'machine' },
+      { exerciseId: 'floor-press-dumbbell', name: 'DB Floor Press', equipment: 'dumbbell' },
+      { exerciseId: 'chest-press-machine', name: 'Machine Chest Press', equipment: 'machine' },
     ],
   },
   horizontalPull: {
     label: 'Horizontal Pull',
     prescription: STANDARD_PRESCRIPTION,
     exercises: [
-      { name: 'Face Pulls', equipment: 'cable' },
-      { name: 'Chest-Supported Row', equipment: 'dumbbell' },
-      { name: 'Band Pull-Aparts', equipment: 'band' },
-      { name: 'Cable Row', equipment: 'cable' },
+      { exerciseId: 'face-pull-cable', name: 'Face Pulls', equipment: 'cable' },
+      { exerciseId: 'chest-supported-row-dumbbell', name: 'Chest-Supported Row', equipment: 'dumbbell' },
+      { exerciseId: 'band-pull-apart', name: 'Band Pull-Aparts', equipment: 'band' },
+      { exerciseId: 'seated-row-cable', name: 'Cable Row', equipment: 'cable' },
     ],
   },
   verticalPush: {
@@ -149,47 +158,47 @@ export const accessoryArchetypes: Record<AccessoryArchetype, AccessoryArchetypeC
     label: 'Vertical Push',
     prescription: STANDARD_PRESCRIPTION,
     exercises: [
-      { name: 'Lateral Raises', equipment: 'dumbbell' },
-      { name: 'Rope Pushdowns', equipment: 'cable' },
-      { name: 'Overhead Triceps Extension', equipment: 'cable' },
+      { exerciseId: 'lateral-raise-dumbbell', name: 'Lateral Raises', equipment: 'dumbbell' },
+      { exerciseId: 'triceps-pushdown-cable', name: 'Rope Pushdowns', equipment: 'cable' },
+      { exerciseId: 'overhead-triceps-extension-cable', name: 'Overhead Triceps Extension', equipment: 'cable' },
     ],
   },
   verticalPull: {
     label: 'Vertical Pull',
     prescription: STANDARD_PRESCRIPTION,
     exercises: [
-      { name: 'Lat Pulldown', equipment: 'cable' },
-      { name: 'Straight-Arm Pulldown', equipment: 'cable' },
-      { name: 'Band-Assisted Chin-Ups', equipment: 'band' },
+      { exerciseId: 'lat-pulldown-cable', name: 'Lat Pulldown', equipment: 'cable' },
+      { exerciseId: 'straight-arm-pulldown-cable', name: 'Straight-Arm Pulldown', equipment: 'cable' },
+      { exerciseId: 'chin-up-band-assisted', name: 'Band-Assisted Chin-Ups', equipment: 'band' },
     ],
   },
   antiExtension: {
     label: 'Core · Anti-Extension',
     prescription: STANDARD_PRESCRIPTION,
     exercises: [
-      { name: 'Hanging Leg Raises', equipment: 'bodyweight' },
-      { name: 'Long-Lever Planks', equipment: 'bodyweight', timed: true },
-      { name: 'Dead Bugs', equipment: 'bodyweight' },
-      { name: 'Body Saws', equipment: 'bodyweight' },
+      { exerciseId: 'hanging-leg-raise', name: 'Hanging Leg Raises', equipment: 'bodyweight' },
+      { exerciseId: 'long-lever-plank', name: 'Long-Lever Planks', equipment: 'bodyweight', timed: true },
+      { exerciseId: 'dead-bug', name: 'Dead Bugs', equipment: 'bodyweight' },
+      { exerciseId: 'body-saw', name: 'Body Saws', equipment: 'bodyweight' },
     ],
   },
   antiRotation: {
     label: 'Core · Anti-Rotation',
     prescription: STANDARD_PRESCRIPTION,
     exercises: [
-      { name: 'Pallof Press', equipment: 'cable' },
-      { name: 'Suitcase Carries', equipment: 'dumbbell', timed: true },
-      { name: 'Side Planks', equipment: 'bodyweight', timed: true },
+      { exerciseId: 'pallof-press-cable', name: 'Pallof Press', equipment: 'cable' },
+      { exerciseId: 'suitcase-carry', name: 'Suitcase Carries', equipment: 'dumbbell', timed: true },
+      { exerciseId: 'side-plank', name: 'Side Planks', equipment: 'bodyweight', timed: true },
     ],
   },
   hamstring: {
     label: 'Legs · Hamstring',
     prescription: '2 × 10',
     exercises: [
-      { name: 'Lying Leg Curl', equipment: 'machine' },
-      { name: 'Seated Leg Curl', equipment: 'machine' },
-      { name: 'Nordic Negatives', equipment: 'bodyweight' },
-      { name: 'RDLs', equipment: 'barbell' },
+      { exerciseId: 'lying-leg-curl-machine', name: 'Lying Leg Curl', equipment: 'machine' },
+      { exerciseId: 'seated-leg-curl-machine', name: 'Seated Leg Curl', equipment: 'machine' },
+      { exerciseId: 'nordic-curl-negative', name: 'Nordic Negatives', equipment: 'bodyweight' },
+      { exerciseId: 'romanian-deadlift-barbell', name: 'RDLs', equipment: 'barbell' },
     ],
   },
 };
@@ -199,13 +208,15 @@ export type AccessorySlot = {
   optional?: boolean;
 };
 
-type GslpSlot = GslpLiftKey | 'pull';
+export type GslpSlot = GslpLiftKey | 'pull';
 
 export type GslpWorkout = {
   key: GslpWorkoutKey;
   label: string;
   focus: string;
   slots: GslpSlot[];
+  // Exercise supersetted with a main lift (catalog id), logged right after it.
+  partners: Partial<Record<GslpSlot, string>>;
   accessories: AccessorySlot[];
 };
 
@@ -215,6 +226,7 @@ export const gslpWorkouts: Record<GslpWorkoutKey, GslpWorkout> = {
     label: 'Workout A',
     focus: 'Vertical',
     slots: ['ohp', 'pull', 'squat'],
+    partners: { ohp: 'calf-raise-bent-knee', pull: 'ninety-ninety-situp' },
     accessories: [
       { archetype: 'horizontalPush' },
       { archetype: 'horizontalPull' },
@@ -227,6 +239,7 @@ export const gslpWorkouts: Record<GslpWorkoutKey, GslpWorkout> = {
     label: 'Workout B',
     focus: 'Horizontal',
     slots: ['bench', 'row', 'deadlift'],
+    partners: { bench: 'calf-raise-single-leg', row: 'ninety-ninety-situp' },
     accessories: [{ archetype: 'verticalPush' }, { archetype: 'verticalPull' }, { archetype: 'antiRotation' }],
   },
 };
@@ -360,6 +373,7 @@ export type GslpLiftLog = {
 
 export type GslpSessionLog = {
   id: string;
+  workoutId?: string; // the logged Workout (db.ts) this progression came from
   date: string; // ISO timestamp
   workout: GslpWorkoutKey;
   lifts: GslpLiftLog[];

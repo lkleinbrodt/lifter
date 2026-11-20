@@ -48,6 +48,12 @@ Full walkthrough in `MOBILE.md`. Same workflow as the `artoo` app in `~/Projects
 - `ios.appleTeamId: "DU26G2LJFP"` in `app.json` (the developer's individual Apple Developer team) is written into the Xcode project at prebuild. That skips the Xcode signing setup and avoids the unrelated "De la Cruz Consulting LLC" org team. Don't put `appleTeamId` in `eas.json`: it isn't a valid key there, and eas-cli rejects the whole file.
 - `eas.json` has only a `preview` build profile (cloud, ad-hoc), a fallback if the Mac isn't available; it builds onto the same `preview` channel. There is no `production` channel or profile, so never push updates to one.
 - `scripts/patch-prompts-confirm.sh` (postinstall) patches a `prompts` crash that happens when the phone is locked during install.
+- `plugins/without-push-entitlement.js` strips the push entitlement that `expo-notifications` adds. The personal team can't sign push, and Lifter only uses local notifications. It must stay listed before `expo-notifications` in `app.json`.
+- If a Release build fails in "[RNDeps] Replace React Native Core" with `ENOTEMPTY`, something (Finder/Spotlight `.DS_Store`) is writing into `ios/Pods/React-Core-prebuilt` mid-delete. Do the swap by hand, then rebuild:
+  1. `rm -rf ios/Pods/React-Core-prebuilt && mkdir ios/Pods/React-Core-prebuilt`
+  2. `tar -xf ios/Pods/ReactNativeCore-artifacts/reactnative-core-<rn>-release.tar.gz -C ios/Pods/React-Core-prebuilt`
+  3. `printf Release > ios/Pods/React-Core-prebuilt/.last_build_configuration`
+- Building with `-destination 'generic/platform=iOS'` avoids needing the phone unlocked during the build. Then install with `xcrun devicectl device install app`.
 
 ## Project Structure
 
@@ -80,7 +86,13 @@ lib/                      # Core business logic
   storage.ts              # 5/3/1 AsyncStorage persistence (maxes, completed workouts)
   gslp.ts                 # GSLP lifts, A/B workouts, warmups, progression rules (pure functions)
   gslp-storage.ts         # GSLP AsyncStorage persistence (state + in-progress draft)
-  exercises-data.ts       # 250+ exercises categorized by movement archetype
+  exercises-data.ts       # Old library list behind the Exercises tab (to be replaced by exercises.ts)
+  exercises.ts            # Lifter 2.0 exercise catalog: stable ids, tracking type, Strong name mapping
+  workout.ts              # Workout log types (Workout → WorkoutExercise → WorkoutSet)
+  db.ts                   # SQLite (expo-sqlite) persistence for the workout log
+  program-module.ts       # Interface a program implements: plan a workout, progress from one
+  gslp-program.ts         # GSLP's ProgramModule
+  strong-import.ts        # Strong CSV export → Workouts (pure)
 hooks/                    # Custom React hooks (color scheme, theme color)
 constants/
   theme.ts                # Design system: colors, fonts, layout, shadows

@@ -24,6 +24,7 @@ export default function RootLayout() {
           <Stack.Screen name="531" options={{ headerShown: false, animation: 'fade' }} />
           <Stack.Screen name="gslp" options={{ headerShown: false, animation: 'fade' }} />
           <Stack.Screen name="archetype/[name]" options={detailHeaderOptions} />
+          <Stack.Screen name="import-strong" options={detailHeaderOptions} />
         </Stack>
         <StatusBar style="light" />
       </ThemeProvider>

@@ -2,7 +2,7 @@
   "expo": {
     "name": "lifter",
     "slug": "lifter",
-    "version": "1.0.2",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "lifter",
@@ -43,7 +43,10 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-sqlite",
+      "./plugins/without-push-entitlement",
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true,
