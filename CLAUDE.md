@@ -13,6 +13,16 @@ The app opens to a program picker (`app/index.tsx`) and reopens straight into th
 
 This is a **personal, single-user app** for the developer's own iPhone. It is not distributed via the App Store or TestFlight, and there is no plan to ever do so — don't suggest `eas submit` or App Store Connect workflows.
 
+### Design principle: built for one user who owns the code
+
+Landon is the only user, he knows how the app works, and he can change the source whenever he wants. Design for that:
+- Anything that can live in code stays in code: program templates, the exercise catalog, rest defaults, set prescriptions. Don't build settings screens, template editors, or "create your own X" flows for things he'd just edit in the repo.
+- In-app UI is for what changes *during a workout* (logging sets, swapping an exercise for today, the rest timer).
+- Skip onboarding, explanatory copy, empty-state polish and other "general audience" affordances.
+- Keep it extensible but lean. Programs differ (GSLP progresses off the AMRAP set; 5/3/1+ will differ), so each program plugs in its own rules. Don't generalize further until a second program actually needs it.
+
+**Lifter 2.0** (turning Lifter into the in-workout tracker that replaces the Strong app) is planned in `docs/lifter-2-plan.md`. Read it before working on workout tracking, the log, or the Strong import.
+
 ## Quick Commands
 
 ```bash

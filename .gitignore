@@ -43,3 +43,9 @@ app-example
 /android
 
 *.ipa
+# Personal data and recordings (public repo: never commit workout history)
+strong*.csv
+*.mp4
+*.MP4
+*.mov
+*.MOV
