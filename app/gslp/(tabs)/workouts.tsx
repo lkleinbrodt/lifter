@@ -5,12 +5,9 @@ import * as Haptics from 'expo-haptics';
 
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import {
-  type GslpLift,
-  type GslpLiftKey,
   type GslpState,
   type GslpWorkoutKey,
   defaultGslpState,
-  formatNumber,
   formatScheme,
   gslpLiftOrder,
   gslpLifts,
@@ -26,7 +23,7 @@ import { C, Radius, numStyle } from '@/constants/theme';
 import React, { useCallback, useRef, useState } from 'react';
 import { formatDuration, formatMinutes } from '@/lib/workout-edit';
 import { formatLoad, getExercise, splitExerciseName } from '@/lib/exercises';
-import { type TopSet, getActiveWorkout, gslpLiftHistory, reopenGslpWorkout, startEmptyWorkout, startGslpWorkout } from '@/lib/workout-actions';
+import { getActiveWorkout, reopenGslpWorkout, startEmptyWorkout, startGslpWorkout } from '@/lib/workout-actions';
 import { gslpTemplateName, workoutDisplayName } from '@/lib/workout-names';
 import { restRemaining, useSession } from '@/lib/session-store';
 import { type Workout, isWorkingSet } from '@/lib/workout';
@@ -34,7 +31,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 
 import { Button } from '@/components/ui/Button';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Pill, SectionHeader } from '@/components/ui/primitives';
+import { SectionHeader } from '@/components/ui/primitives';
 import { ProgramHeader } from '@/components/program-header';
 import { SafeAreaContainer } from '@/components/safe-area';
 import { ThemedText } from '@/components/themed-text';
@@ -57,16 +54,9 @@ export default function GslpWorkoutScreen() {
   const [starting, setStarting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [menu, setMenu] = useState<MenuState | null>(null);
-  const [lastTops, setLastTops] = useState<Partial<Record<GslpLiftKey, TopSet[]>>>({});
 
   const load = useCallback(async () => {
-    const [stored, current, [latest], tops] = await Promise.all([
-      loadGslpState(),
-      getActiveWorkout(),
-      listWorkouts({ limit: 1 }),
-      gslpLiftHistory(1),
-    ]);
-    setLastTops(tops);
+    const [stored, current, [latest]] = await Promise.all([loadGslpState(), getActiveWorkout(), listWorkouts({ limit: 1 })]);
     setState(stored);
     setActive(current);
     setLast(latest ?? null);
@@ -140,7 +130,6 @@ export default function GslpWorkoutScreen() {
           <>
             <NextCard
               state={state}
-              lastTops={lastTops}
               template={next.workout}
               index={next.index}
               starting={starting}
@@ -211,19 +200,8 @@ function CycleDots({ index }: { index: number }) {
   );
 }
 
-/** The step from last session's top set to today's weight: "+2.5", or "↓ 10" after a deload. */
-function jumpPill(state: GslpState, lastTops: Partial<Record<GslpLiftKey, TopSet[]>>, lift: GslpLift) {
-  const last = lastTops[lift.key]?.at(-1);
-  if (!last) return null;
-  const delta = state.weights[lift.key] - last.weight;
-  if (delta > 0) return <Pill label={`+${formatNumber(delta)}`} tone="accent" num />;
-  if (delta < 0) return <Pill label={`↓ ${formatNumber(-delta)}`} tone="deload" num />;
-  return null;
-}
-
 function NextCard({
   state,
-  lastTops,
   template,
   index,
   starting,
@@ -231,7 +209,6 @@ function NextCard({
   onStart,
 }: {
   state: GslpState;
-  lastTops: Partial<Record<GslpLiftKey, TopSet[]>>;
   template: GslpWorkoutKey;
   index: number;
   starting: boolean;
@@ -268,7 +245,6 @@ function NextCard({
                   {formatScheme(lift)}
                 </ThemedText>
               </View>
-              {jumpPill(state, lastTops, lift)}
               <ThemedText num style={styles.liftWeight}>
                 {isWeightSet(lift, state.weights) ? formatLoad(weight, tracking) : '—'}
               </ThemedText>

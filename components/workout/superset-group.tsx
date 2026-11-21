@@ -1,4 +1,6 @@
 import { StyleSheet, View } from 'react-native';
+import Animated from 'react-native-reanimated';
+import { cardLayout } from './exercise-card';
 import React, { type ReactNode } from 'react';
 
 import { C, Radius } from '@/constants/theme';
@@ -17,7 +19,7 @@ export function supersetRound(members: WorkoutExercise[]) {
 export function SupersetGroup({ members, children }: { members: WorkoutExercise[]; children: ReactNode[] }) {
   const { round, rounds, finished } = supersetRound(members);
   return (
-    <View style={styles.group}>
+    <Animated.View layout={cardLayout} style={styles.group}>
       <ThemedText type="caption" style={styles.caption}>
         {finished ? 'Superset · done' : `Superset · round ${round} of ${rounds}`}
       </ThemedText>
@@ -27,7 +29,7 @@ export function SupersetGroup({ members, children }: { members: WorkoutExercise[
           {child}
         </View>
       ))}
-    </View>
+    </Animated.View>
   );
 }
 

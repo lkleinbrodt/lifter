@@ -42,7 +42,8 @@ import { gslpOptionalSlots, gslpSlotChoices, gslpSlotLabel } from '@/lib/gslp-pr
 
 import { Button } from '@/components/ui/Button';
 import { C, Colors, Fonts, numStyle } from '@/constants/theme';
-import { ExerciseCard } from '@/components/workout/exercise-card';
+import { ExerciseCard, cardLayout } from '@/components/workout/exercise-card';
+import Animated from 'react-native-reanimated';
 import { SupersetGroup } from '@/components/workout/superset-group';
 import { nextUpFor } from '@/components/workout/next-up';
 import { WorkoutSummary } from '@/components/workout/workout-summary';
@@ -524,7 +525,7 @@ export default function WorkoutScreen() {
                     onSetChange={(setId, patch: SetPatch) => {
                       apply((w) => updateSet(w, entry.id, setId, patch));
                       const set = entry.sets.find((item) => item.id === setId);
-                      if (!finished && patch.done && set && set.type !== 'warmup') void startRest(restSecFor(entry.exerciseId));
+                      if (!finished && patch.done && set) void startRest(restSecFor(entry.exerciseId)); // every set, warm-ups too; Skip is right there
                     }}
                     onSetDelete={(setId) => apply((w) => removeSet(w, entry.id, setId))}
                     onAddSet={() => apply((w) => addSet(w, entry.id))}
@@ -545,7 +546,7 @@ export default function WorkoutScreen() {
               })}
 
           {!finished || editing ? (
-            <View style={styles.footer}>
+            <Animated.View layout={cardLayout} style={styles.footer}>
               <Button title="Add exercise" variant="secondary" onPress={() => setPicker({ kind: 'add' })} />
               {optionalSlots.map((slot) => (
                 <Button
@@ -562,7 +563,7 @@ export default function WorkoutScreen() {
                   <ThemedText style={styles.discardText}>Discard workout</ThemedText>
                 </Pressable>
               )}
-            </View>
+            </Animated.View>
           ) : null}
         </ScrollView>
       </KeyboardAvoidingView>

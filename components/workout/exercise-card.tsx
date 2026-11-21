@@ -1,13 +1,23 @@
 import * as Haptics from 'expo-haptics';
 
-import { LayoutAnimation, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import Animated, { ZoomIn, interpolateColor, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import Animated, {
+  Easing,
+  FadeIn,
+  FadeOut,
+  LinearTransition,
+  interpolateColor,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import React, { useEffect, useRef, useState } from 'react';
 import { type MenuAnchor, measureAnchor } from '@/components/ui/action-menu';
 import { PlateDiagram } from './plate-diagram';
 import { ROW_PADDING, SET_COLUMNS, type SetPatch, SetRow, weightHeader } from './set-row';
 import { isBarbellExercise, getExercise, splitExerciseName } from '@/lib/exercises';
-import { previousSetFor, setLabels, setScheme, summarizeWorkSets } from '@/lib/workout-edit';
+import { estimated1RM, previousSetFor, setLabels, setScheme, summarizeWorkSets } from '@/lib/workout-edit';
 
 import { C, Radius, numStyle } from '@/constants/theme';
 import { Chip } from '@/components/ui/primitives';
@@ -38,7 +48,22 @@ type ExerciseCardProps = {
 /** Barbell cards show a plate diagram for the current set. Flip to compare against Strong's name-only header. */
 const SHOW_PLATE_DIAGRAM = true;
 
-const COLLAPSE_DELAY_MS = 400;
+const COLLAPSE_DELAY_MS = 250;
+
+/** Card height eases between expanded and collapsed; cards below slide with it (see the workout screen). */
+export const cardLayout = LinearTransition.duration(280).easing(Easing.out(Easing.cubic));
+
+/** The done check fades in with a slight scale, not a bounce. */
+function softPop() {
+  'worklet';
+  return {
+    initialValues: { opacity: 0, transform: [{ scale: 0.8 }] },
+    animations: {
+      opacity: withTiming(1, { duration: 220 }),
+      transform: [{ scale: withTiming(1, { duration: 280, easing: Easing.out(Easing.cubic) }) }],
+    },
+  };
+}
 
 const fmt = (value: number | undefined) => (value === undefined ? '' : String(Number(value.toFixed(2))));
 
@@ -78,11 +103,10 @@ export function ExerciseCard({
     if (allDone && !wasDone.current) {
       wasDone.current = true;
       const timer = setTimeout(() => {
-        if (!reduceMotion) LayoutAnimation.configureNext(LayoutAnimation.create(260, 'easeInEaseOut', 'opacity'));
         setCollapsed(true);
         setJustFinished(true);
         glow.value = 1;
-        glow.value = withTiming(0, { duration: 1100 });
+        glow.value = withTiming(0, { duration: 900 });
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }, COLLAPSE_DELAY_MS);
       return () => clearTimeout(timer);
@@ -91,12 +115,11 @@ export function ExerciseCard({
       wasDone.current = false;
       setCollapsed(false);
     }
-  }, [allDone, reduceMotion, glow]);
+  }, [allDone, glow]);
   const glowStyle = useAnimatedStyle(() => ({
     backgroundColor: interpolateColor(glow.value, [0, 1], [C.s1, '#27322E']),
   }));
   const expand = () => {
-    if (!reduceMotion) LayoutAnimation.configureNext(LayoutAnimation.create(220, 'easeInEaseOut', 'opacity'));
     setJustFinished(false);
     setCollapsed(false);
   };
@@ -118,16 +141,21 @@ export function ExerciseCard({
   const subtitle = [detail, mainLift ? scheme : slotLabel].filter(Boolean).join(' · ');
   const showChips = !!choices && choices.length > 1 && !entry.sets.some((set) => set.done);
 
-  if (collapsed) {
-    return (
-      <Animated.View style={[styles.card, styles.cardCollapsed, grouped && styles.cardGrouped, glowStyle]}>
+  // The AMRAP's estimated 1RM rides along on the collapsed line (the badge is hidden once collapsed).
+  const amrapSet = entry.sets.find((set) => set.type === 'amrap' && set.done);
+  const e1rm = exercise.tracking === 'weightReps' ? estimated1RM(amrapSet?.weight, amrapSet?.reps) : undefined;
+
+  return (
+    <Animated.View layout={cardLayout} style={[styles.card, collapsed && styles.cardCollapsed, grouped && styles.cardGrouped, glowStyle]}>
+      {collapsed ? (
+        <Animated.View key="collapsed" entering={FadeIn.duration(200).delay(80)}>
         <Pressable
           onPress={expand}
           style={({ pressed }) => [styles.collapsedRow, pressed && styles.pressed]}
           accessibilityRole="button"
           accessibilityLabel={`${title}, done`}
           accessibilityHint="Shows the sets">
-          <Animated.View entering={justFinished && !reduceMotion ? ZoomIn.springify().damping(12) : undefined} style={styles.doneBadge}>
+          <Animated.View entering={justFinished && !reduceMotion ? softPop : undefined} style={styles.doneBadge}>
             <IconSymbol name="checkmark" size={14} weight="bold" color={C.onAccent} />
           </Animated.View>
           <View style={styles.collapsedText}>
@@ -139,16 +167,21 @@ export function ExerciseCard({
             </View>
             <ThemedText num style={styles.collapsedSets} numberOfLines={1}>
               {summarizeWorkSets(entry.sets, exercise.tracking)}
+              {e1rm ? (
+                <ThemedText style={styles.collapsedE1rm}>
+                  {'  ★ e1RM '}
+                  <ThemedText num style={styles.collapsedE1rmNum}>
+                    {e1rm}
+                  </ThemedText>
+                </ThemedText>
+              ) : null}
             </ThemedText>
           </View>
           <IconSymbol name="chevron.down" size={14} color={C.t4} />
         </Pressable>
-      </Animated.View>
-    );
-  }
-
-  return (
-    <View style={[styles.card, grouped && styles.cardGrouped]}>
+        </Animated.View>
+      ) : (
+      <Animated.View key="expanded" entering={FadeIn.duration(180)} exiting={FadeOut.duration(140)} style={styles.expanded}>
       <View style={styles.header}>
         <View style={styles.titleBlock}>
           <View style={styles.nameRow}>
@@ -243,7 +276,9 @@ export function ExerciseCard({
           <ThemedText style={styles.addSetText}>+ Set</ThemedText>
         </Pressable>
       </View>
-    </View>
+      </Animated.View>
+      )}
+    </Animated.View>
   );
 }
 
@@ -270,6 +305,9 @@ const styles = StyleSheet.create({
   titleMain: { fontSize: 19, lineHeight: 24, fontWeight: '600' },
   title: { fontSize: 17, lineHeight: 22, fontWeight: '600' },
   cardCollapsed: { paddingTop: 0 },
+  expanded: {},
+  collapsedE1rm: { fontSize: 14, color: C.accent },
+  collapsedE1rmNum: { ...numStyle, fontSize: 15, color: C.accent },
   collapsedRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14 },
   doneBadge: { width: 26, height: 26, borderRadius: 13, backgroundColor: C.accent, alignItems: 'center', justifyContent: 'center' },
   collapsedText: { flex: 1, gap: 2 },

@@ -9,6 +9,7 @@ import { C, numStyle } from '@/constants/theme';
 import { ThemedText } from '@/components/themed-text';
 import { formatDuration } from '@/lib/workout-edit';
 import type { NextUp } from './next-up';
+import { PlateDiagram } from './plate-diagram';
 
 /** Re-renders every `ms` while `active`. */
 export function useNow(active: boolean, ms = 1000) {
@@ -47,6 +48,7 @@ export function RestBar({ bottomInset, next }: { bottomInset: number; next?: Nex
   const progress = Math.min(1, Math.max(0, left / rest.durationSec));
 
   return (
+    <View style={styles.shadow}>
     <View style={[styles.bar, { paddingBottom: bottomInset + 8 }]}>
       <View style={[styles.fill, { width: `${progress * 100}%` }]} />
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.pulse, pulseStyle]} />
@@ -69,11 +71,19 @@ export function RestBar({ bottomInset, next }: { bottomInset: number; next?: Nex
           <ThemedText style={styles.nextName} numberOfLines={1}>
             {next.name} <ThemedText style={styles.nextSet}>· {next.set}</ThemedText>
           </ThemedText>
-          <ThemedText num style={styles.nextNumbers} numberOfLines={1}>
-            {next.numbers}
-          </ThemedText>
+          <View style={styles.nextRight}>
+            <ThemedText num style={styles.nextNumbers} numberOfLines={1}>
+              {next.numbers}
+            </ThemedText>
+          </View>
         </View>
       ) : null}
+      {next?.plateWeight ? (
+        <View style={styles.nextPlates}>
+          <PlateDiagram weight={next.plateWeight} compact />
+        </View>
+      ) : null}
+    </View>
     </View>
   );
 }
@@ -96,10 +106,22 @@ function BarButton({ label, primary, onPress }: { label: string; primary?: boole
 }
 
 const styles = StyleSheet.create({
+  // Rounded top with a light rim and an upward shadow, so the bar reads as a sheet over the list.
+  shadow: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 14,
+    elevation: 12,
+  },
   bar: {
     backgroundColor: C.s2,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: C.line,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
     paddingHorizontal: 16,
     paddingTop: 12,
     gap: 10,
@@ -133,5 +155,7 @@ const styles = StyleSheet.create({
   nextCaption: { color: C.t3 },
   nextName: { flexShrink: 1, fontSize: 15, fontWeight: '600', color: C.t1 },
   nextSet: { fontSize: 15, fontWeight: '400', color: C.t2 },
-  nextNumbers: { ...numStyle, marginLeft: 'auto', fontSize: 15, color: C.t2 },
+  nextRight: { marginLeft: 'auto' },
+  nextNumbers: { ...numStyle, fontSize: 15, color: C.t2 },
+  nextPlates: { alignItems: 'flex-end', marginTop: -6 },
 });

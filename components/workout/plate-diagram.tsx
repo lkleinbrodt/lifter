@@ -18,18 +18,23 @@ const PLATE: Record<number, { height: number; color: string }> = {
 
 const label = (plate: number) => String(plate);
 
-export function PlateDiagram({ weight }: { weight: number }) {
+/** `compact`: small, plates only (no total), for the rest bar's Next line. */
+export function PlateDiagram({ weight, compact }: { weight: number; compact?: boolean }) {
   const plates = calculatePlateMath(weight);
   const total = Number.isInteger(weight) ? String(weight) : String(Number(weight.toFixed(2)));
   return (
-    <View style={styles.row} accessibilityLabel={`${total} pounds${plates.length ? `, ${plates.join(', ')} per side` : ', empty bar'}`}>
+    <View
+      style={[styles.row, compact && styles.rowCompact]}
+      accessibilityLabel={`${total} pounds${plates.length ? `, ${plates.join(', ')} per side` : ', empty bar'}`}>
+      {compact ? null : (
       <View style={styles.total}>
         <ThemedText num style={styles.totalNumber}>
           {total}
         </ThemedText>
         <ThemedText style={styles.totalUnit}>lb</ThemedText>
       </View>
-      <View style={styles.bar}>
+      )}
+      <View style={[styles.bar, compact && styles.barCompact]}>
         <View style={styles.sleeve} />
         <View style={styles.collar} />
         {plates.length === 0 ? (
@@ -40,8 +45,15 @@ export function PlateDiagram({ weight }: { weight: number }) {
             return (
               <View
                 key={index}
-                style={[styles.plate, { height: spec.height, backgroundColor: spec.color, minWidth: Math.max(20, label(plate).length * 6.5 + 6) }]}>
-                <ThemedText num style={styles.plateLabel}>
+                style={[
+                  styles.plate,
+                  {
+                    height: compact ? Math.round(spec.height * 0.6) : spec.height,
+                    backgroundColor: spec.color,
+                    minWidth: compact ? Math.max(16, label(plate).length * 5.6 + 4) : Math.max(20, label(plate).length * 6.5 + 6),
+                  },
+                ]}>
+                <ThemedText num style={[styles.plateLabel, compact && styles.plateLabelCompact]}>
                   {label(plate)}
                 </ThemedText>
               </View>
@@ -60,6 +72,9 @@ const styles = StyleSheet.create({
   totalNumber: { ...numStyle, fontSize: 22, fontWeight: '600', color: C.t1 },
   totalUnit: { fontSize: 13, color: C.t3 },
   bar: { flexDirection: 'row', alignItems: 'center', height: 48 },
+  rowCompact: { marginTop: 0 },
+  barCompact: { height: 30 },
+  plateLabelCompact: { fontSize: 9 },
   sleeve: { width: 22, height: 5, borderRadius: 1, backgroundColor: C.t4 },
   collar: { width: 5, height: 14, borderRadius: 1.5, backgroundColor: C.t3, marginRight: 2 },
   plate: {

@@ -247,14 +247,16 @@ export function estimated1RM(weight: number | undefined, reps: number | undefine
 }
 
 /**
- * The AMRAP badge for a logged AMRAP set: "★ 9 reps · e1RM 208", or "★ 6 reps" for lifts
- * without a known total load (added-load or bodyweight). `hit` = met the target reps.
+ * The AMRAP badge for a logged AMRAP set: reps, plus estimated 1RM when the total load is known
+ * (not for added-load or bodyweight lifts). `hit` = met the target reps.
  */
-export function amrapBadge(set: WorkoutSet, tracking: TrackingType): { label: string; hit: boolean } | undefined {
+export function amrapBadge(set: WorkoutSet, tracking: TrackingType): { reps: number; e1rm?: number; hit: boolean } | undefined {
   if (set.type !== 'amrap' || !set.done || !set.reps) return undefined;
-  const hit = set.reps >= (set.target?.reps ?? 0);
-  const e1rm = tracking === 'weightReps' ? estimated1RM(set.weight, set.reps) : undefined;
-  return { label: `★ ${set.reps} reps${e1rm ? ` · e1RM ${e1rm}` : ''}`, hit };
+  return {
+    reps: set.reps,
+    e1rm: tracking === 'weightReps' ? estimated1RM(set.weight, set.reps) : undefined,
+    hit: set.reps >= (set.target?.reps ?? 0),
+  };
 }
 
 export type ExerciseBlock = { key: string; entries: WorkoutExercise[]; letter?: string };

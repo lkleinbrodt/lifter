@@ -12,7 +12,6 @@ import { type TrackingType, formatLoad } from '@/lib/exercises';
 import type { WorkoutSet } from '@/lib/workout';
 import { formatPlatesCompact } from '@/lib/plates';
 import { amrapBadge, setHasValues } from '@/lib/workout-edit';
-import { Pill } from '@/components/ui/primitives';
 
 export type SetPatch = Partial<Pick<WorkoutSet, 'weight' | 'reps' | 'durationSec' | 'done' | 'completedAt'>>;
 
@@ -204,6 +203,7 @@ export function SetRow({ label, set, previous, tracking, current, plates, separa
                 amrap && styles.badgeAmrap,
                 warmup && styles.badgeWarmup,
                 current && !set.done && styles.badgeCurrent,
+                set.done && styles.badgeDone,
               ]}>
               <ThemedText
                 num
@@ -212,6 +212,7 @@ export function SetRow({ label, set, previous, tracking, current, plates, separa
                   amrap && { color: C.amrap },
                   warmup && { color: C.warmup },
                   current && !set.done && { color: C.onAccent },
+                  set.done && { color: C.t3 },
                 ]}>
                 {label}
               </ThemedText>
@@ -271,14 +272,31 @@ export function SetRow({ label, set, previous, tracking, current, plates, separa
                 name="checkmark"
                 size={warmup ? 15 : 18}
                 weight="bold"
-                color={set.done ? C.onAccent : current ? C.accent : C.t3}
+                color={set.done || current ? C.accent : C.t3}
               />
             </Pressable>
           </Animated.View>
         </View>
         {badge ? (
-          <View style={[styles.badgeLine, styles.rowDone]}>
-            <Pill label={badge.label} tone={badge.hit ? 'accent' : 'neutral'} num />
+          <View style={styles.badgeLine}>
+            <View style={[styles.amrapPill, badge.hit && styles.amrapPillHit]}>
+              <ThemedText style={[styles.amrapText, badge.hit && styles.amrapTextHit]}>
+                ★{'  '}
+                <ThemedText num style={[styles.amrapNum, badge.hit && styles.amrapTextHit]}>
+                  {badge.reps}
+                </ThemedText>
+                {' reps'}
+                {badge.e1rm ? (
+                  <>
+                    <ThemedText style={styles.amrapDot}>{'   ·   '}</ThemedText>
+                    {'e1RM '}
+                    <ThemedText num style={[styles.amrapNum, badge.hit && styles.amrapTextHit]}>
+                      {badge.e1rm}
+                    </ThemedText>
+                  </>
+                ) : null}
+              </ThemedText>
+            </View>
           </View>
         ) : null}
       </View>
@@ -309,8 +327,22 @@ const styles = StyleSheet.create({
   },
   rowWarmup: { height: 44 },
   rowCurrent: { backgroundColor: C.s2 },
-  rowDone: { backgroundColor: C.accentBg },
-  badgeLine: { alignItems: 'flex-end', paddingHorizontal: ROW_PADDING + 6, paddingBottom: 10, marginTop: -2 },
+  // Done rows recede (dimmer values, quiet check) so the current row stays the loudest thing.
+  rowDone: {},
+  badgeLine: { paddingLeft: ROW_PADDING + SET_COLUMNS.label, paddingRight: ROW_PADDING, paddingBottom: 12, marginTop: -4 },
+  amrapPill: {
+    alignSelf: 'flex-start',
+    height: 28,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    justifyContent: 'center',
+    backgroundColor: C.s2,
+  },
+  amrapPillHit: { backgroundColor: C.accentBg },
+  amrapText: { fontSize: 13, color: C.t2 },
+  amrapTextHit: { color: C.accent },
+  amrapNum: { ...numStyle, fontSize: 14, fontWeight: '700', color: C.t1 },
+  amrapDot: { fontSize: 13, color: C.t3 },
   labelCell: { width: SET_COLUMNS.label, alignItems: 'flex-start' },
   badge: {
     minWidth: 28,
@@ -354,7 +386,7 @@ const styles = StyleSheet.create({
     backgroundColor: C.s3,
     borderColor: 'rgba(255,255,255,0.08)',
   },
-  fieldDone: { color: C.t2 },
+  fieldDone: { color: C.t3 },
   fieldSmallText: { fontSize: 12.5, letterSpacing: -0.7 },
   fieldFocused: {
     backgroundColor: C.s3,
@@ -372,7 +404,8 @@ const styles = StyleSheet.create({
   },
   checkWarmup: { width: 40, height: 36 },
   checkCurrent: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: C.accent },
-  checkDone: { backgroundColor: C.accent },
+  checkDone: { backgroundColor: C.accentBg },
+  badgeDone: { backgroundColor: 'transparent' },
   delete: {
     justifyContent: 'center',
     alignItems: 'center',
