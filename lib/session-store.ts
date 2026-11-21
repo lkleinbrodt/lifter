@@ -7,9 +7,23 @@ import * as Notifications from 'expo-notifications';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getActiveWorkout } from './db';
+import type { Workout } from './workout';
+import { workoutDisplayName } from './workout-names';
 import { useSyncExternalStore } from 'react';
 
-export type ActiveSummary = { id: string; name: string; startedAt: string };
+export type ActiveSummary = { id: string; name: string; startedAt: string; doneSets: number; totalSets: number };
+
+/** What the minibar and Workout tab need from the active workout. */
+export function summarizeActive(workout: Workout): ActiveSummary {
+  const sets = workout.exercises.flatMap((entry) => entry.sets);
+  return {
+    id: workout.id,
+    name: workoutDisplayName(workout),
+    startedAt: workout.startedAt,
+    doneSets: sets.filter((set) => set.done).length,
+    totalSets: sets.length,
+  };
+}
 export type RestTimer = { endsAt: number; durationSec: number };
 
 type Snapshot = { active: ActiveSummary | null; rest: RestTimer | null };
@@ -42,7 +56,7 @@ export function setActiveWorkout(active: ActiveSummary | null) {
 
 export async function refreshActiveWorkout() {
   const workout = await getActiveWorkout();
-  set({ active: workout ? { id: workout.id, name: workout.name, startedAt: workout.startedAt } : null });
+  set({ active: workout ? summarizeActive(workout) : null });
 }
 
 // ---- Rest timer ----

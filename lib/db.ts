@@ -4,6 +4,7 @@
 import * as SQLite from 'expo-sqlite';
 
 import type { SetTarget, SetType, Workout, WorkoutExercise, WorkoutSet, WorkoutSource } from './workout';
+import { workoutDisplayName } from './workout-names';
 
 const MIGRATIONS: string[] = [
   `
@@ -320,7 +321,25 @@ export async function dbStats() {
   };
 }
 
-export type ExerciseSession = { workoutId: string; workoutName: string; startedAt: string; sets: WorkoutSet[] };
+export type ExerciseSession = {
+  workoutId: string;
+  workoutName: string;
+  /** Template-based name for display, e.g. "B · Horizontal + Deadlift" (see workout-names.ts). */
+  displayName: string;
+  startedAt: string;
+  sets: WorkoutSet[];
+};
+
+/** Display name from a workout row's source plus its exercise ids, without hydrating the workout. */
+function displayNameFor(row: { name: string; started_at: string; source_json: string; exercise_ids: string | null }) {
+  return workoutDisplayName({
+    id: '',
+    name: row.name,
+    startedAt: row.started_at,
+    source: JSON.parse(row.source_json),
+    exercises: (row.exercise_ids ?? '').split(',').map((exerciseId) => ({ id: '', exerciseId, sets: [] })),
+  });
+}
 
 /** Past sessions of one exercise, newest first. Feeds "Previous" (limit 1) and the history sheet. */
 export async function exerciseHistory(
@@ -328,8 +347,16 @@ export async function exerciseHistory(
   { limit = 20, before }: { limit?: number; before?: string } = {},
 ): Promise<ExerciseSession[]> {
   const db = await getDb();
-  const rows = await db.getAllAsync<{ we_id: string; workout_id: string; name: string; started_at: string }>(
-    `SELECT e.id AS we_id, w.id AS workout_id, w.name, w.started_at
+  const rows = await db.getAllAsync<{
+    we_id: string;
+    workout_id: string;
+    name: string;
+    started_at: string;
+    source_json: string;
+    exercise_ids: string | null;
+  }>(
+    `SELECT e.id AS we_id, w.id AS workout_id, w.name, w.started_at, w.source_json,
+       (SELECT group_concat(x.exercise_id) FROM workout_exercises x WHERE x.workout_id = w.id) AS exercise_ids
      FROM workout_exercises e JOIN workouts w ON w.id = e.workout_id
      WHERE e.exercise_id = ? AND w.finished_at IS NOT NULL AND (? IS NULL OR w.started_at < ?)
      ORDER BY w.started_at DESC, e.position LIMIT ?`,
@@ -347,7 +374,33 @@ export async function exerciseHistory(
   return rows.map((row) => ({
     workoutId: row.workout_id,
     workoutName: row.name,
+    displayName: displayNameFor(row),
     startedAt: row.started_at,
     sets: setRows.filter((set) => set.workout_exercise_id === row.we_id).map(toSet),
   }));
+}
+
+/** The latest finished session of every exercise that has one: for "Recent" and last-numbers columns. */
+export async function latestSessions(): Promise<Record<string, { startedAt: string; sets: WorkoutSet[] }>> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<{ we_id: string; exercise_id: string; started_at: string }>(
+    `SELECT e.id AS we_id, e.exercise_id, w.started_at
+     FROM workout_exercises e JOIN workouts w ON w.id = e.workout_id
+     WHERE w.finished_at IS NOT NULL
+     ORDER BY w.started_at DESC, e.position`,
+  );
+  const latest = new Map<string, { weId: string; startedAt: string }>();
+  for (const row of rows) if (!latest.has(row.exercise_id)) latest.set(row.exercise_id, { weId: row.we_id, startedAt: row.started_at });
+  if (latest.size === 0) return {};
+  const ids = [...latest.values()].map((item) => item.weId);
+  const setRows = await db.getAllAsync<SetRow>(
+    `SELECT * FROM sets WHERE workout_exercise_id IN (${ids.map(() => '?').join(',')}) ORDER BY position`,
+    ids,
+  );
+  return Object.fromEntries(
+    [...latest].map(([exerciseId, item]) => [
+      exerciseId,
+      { startedAt: item.startedAt, sets: setRows.filter((set) => set.workout_exercise_id === item.weId).map(toSet) },
+    ]),
+  );
 }

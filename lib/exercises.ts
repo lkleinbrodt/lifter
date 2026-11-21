@@ -197,3 +197,25 @@ export function formatLoad(weight: number | undefined, tracking: TrackingType): 
   if (tracking === 'assistedReps') return weight === 0 ? 'BW' : `−${trimNumber(weight)}`;
   return trimNumber(weight);
 }
+
+const EQUIPMENT = ['Barbell', 'Dumbbell', 'Cable', 'Machine', 'Kettlebell', 'Rings'];
+
+/** Equipment for display: from the name's detail ("Bench Press (Barbell)"), else bodyweight for unloaded lifts. */
+export function exerciseEquipment(id: string): string | undefined {
+  const exercise = EXERCISE_CATALOG[id];
+  if (!exercise) return undefined;
+  const detail = splitExerciseName(exercise.name).detail ?? '';
+  const named = EQUIPMENT.find((item) => detail.toLowerCase().startsWith(item.toLowerCase()) || exercise.name.includes(item));
+  if (named) return named;
+  return exercise.tracking === 'weightReps' ? undefined : 'Bodyweight';
+}
+
+/** The line under an exercise name: its name detail, plus equipment when the detail doesn't already say it. */
+export function exerciseMeta(id: string) {
+  const exercise = EXERCISE_CATALOG[id];
+  if (!exercise) return '';
+  const detail = splitExerciseName(exercise.name).detail;
+  const equipment = exerciseEquipment(id);
+  if (detail && equipment && detail.toLowerCase().includes(equipment.toLowerCase())) return detail;
+  return [detail, equipment].filter(Boolean).join(' · ');
+}

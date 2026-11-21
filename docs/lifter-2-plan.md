@@ -197,7 +197,7 @@ Each phase is its own branch and PR.
 
 ### Phase 3.5: Visual polish
 - The functional screens work but look rough. Do a dedicated design pass on the workout screen, start screen, history and summary: spacing, hierarchy, the set table, and the tone of the done/rest states.
-- **Approved spec: `docs/ui-overhaul-proposal.md`** (decisions, tokens, per-screen specs). The visual reference is the artifact linked there; where they differ, the spec wins. 3.5a and 3.5b are built (not yet on the phone); 3.5c onward waits for the phone check.
+- **Approved spec: `docs/ui-overhaul-proposal.md`** (decisions, tokens, per-screen specs). The visual reference is the artifact linked there; where they differ, the spec wins. 3.5a–3.5g are all built (2026-11-20); 3.5a+b were tried on the phone, the rest awaits one review.
 - Sub-phases, each its own branch and OTA update, with no native build:
   - **3.5a** Foundation: tokens, fonts, primitives, dark `Appearance`.
   - **3.5b** Workout ledger: the grid stays and every cell is editable, plus a current set, warm-ups that collapse, and a plate line with a plates toggle.
@@ -213,6 +213,14 @@ Each phase is its own branch and PR.
   - Helpers: `splitExerciseName`, `formatLoad` (BW) in `lib/exercises.ts`; `workoutDisplayName` in `lib/workout-names.ts`; `setOrder` / `currentSet` / `setScheme` in `lib/workout-edit.ts`; plate formatting in `lib/plates.ts`.
   - Unused Expo template components (parallax-scroll-view, hello-wave, external-link, collapsible) were removed.
   - Plates mode uses 12.5pt text in the weight column so `45·10·2.5` fits.
+- **Phone feedback on 3.5b (applied):** the one-line plate text was replaced by a plate diagram (one side of the bar, plates sized and labeled; `SHOW_PLATE_DIAGRAM` in `exercise-card.tsx` turns it off for a Strong-style name-only header). The exercise name no longer opens history (it's in ⋯). The ⋯ menus are a custom anchored popover (`components/ui/action-menu.tsx`). Completing a set bumps the check; rows have hairline separators.
+- **Built (3.5c–g):**
+  - Finished exercises collapse after 400ms with a success haptic and a brief glow; AMRAP badge `★ 9 reps · e1RM 208` (success haptic when the target is hit); superset group card with A1/A2 tags and round counter; rest bar with draining fill, −15/+15/Skip and a "Next" line.
+  - Tabs: Workout · History · Exercises · Settings. Settings holds GSLP weights (last top set, sparkline and jump read from the workout log, so Strong imports count), the Program row, then the dev sections. `/gslp` redirects to the Workout tab; `/settings` still works.
+  - Workout tab: hero card (cycle dots, lift weights with jump pills, "With …" line, Start), live card while in progress, one Last session card (⋯ → Undo & reopen).
+  - History: compact cards grouped by week, best main-lift sets with ↑, amber `?` on implausible durations. Summary: date in the nav, ⋯ (Edit / Undo & reopen / Delete) + Done, stat tiles, "Next A" weights, one-line exercises. Edit mode has an amber banner.
+  - Floating minibar with a rest ring and set count; restyled tab bar. Picker: For this slot / Recent / All, with last numbers. History sheet: top-set bar chart + sessions. Exercises tab: catalog list with pattern chips.
+- **Not done:** the optional AMRAP `PR` marker; 5/3/1's `archetype/[name]` screen and `exercises-data.ts` stay for the 5/3/1 side.
 - Scope is GSLP and the general app only. The 5/3/1 notes are parked at the bottom of the spec.
 
 ### Phase 4: Supersets

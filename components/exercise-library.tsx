@@ -1,118 +1,136 @@
-import { SectionList, StyleSheet, View } from 'react-native';
+// Exercises tab: the catalog (lib/exercises.ts) as a list, filtered by movement pattern. Each
+// row shows its equipment and last session's top set; tap for the exercise's history.
 
-import { Card } from '@/components/ui/Card';
-import { Colors } from '@/constants/theme';
+import { ALL_EXERCISES, type MovementPattern, exerciseMeta, splitExerciseName } from '@/lib/exercises';
+import { Pressable, ScrollView, SectionList, StyleSheet, View } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+
+import { C, Radius, numStyle } from '@/constants/theme';
+import { Chip } from '@/components/ui/primitives';
+import { ExerciseHistorySheet } from '@/components/workout/exercise-history-sheet';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { ProgramHeader } from '@/components/program-header';
-import { getExercisesByPrimaryArchetype, type PrimaryArchetype } from '@/lib/exercises-data';
-import React, { useMemo } from 'react';
 import { SafeAreaContainer } from '@/components/safe-area';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { lastTopSet } from '@/components/workout/exercise-picker';
+import { latestSessions } from '@/lib/db';
+import { useFocusEffect } from '@react-navigation/native';
 
-const PRIMARY_ARCHETYPE_ORDER: PrimaryArchetype[] = ['Vertical Pull', 'Vertical Push', 'Horizontal Pull', 'Horizontal Push', 'Squat', 'Hinge', 'Misc'];
-
-type ExerciseSection = {
-  title: string;
-  data: string[][]; // Array with single item containing all exercise names for this archetype
-};
+const PATTERNS: MovementPattern[] = [
+  'Horizontal Push',
+  'Vertical Push',
+  'Horizontal Pull',
+  'Vertical Pull',
+  'Squat',
+  'Hinge',
+  'Core',
+  'Calves',
+  'Arms',
+  'Other',
+];
 
 export default function ExercisesScreen() {
-  const insets = useSafeAreaInsets();
-  
-  const sections = useMemo(() => {
-    const grouped = getExercisesByPrimaryArchetype();
-    const sectionsList: ExerciseSection[] = [];
-    
-    for (const archetype of PRIMARY_ARCHETYPE_ORDER) {
-      const exercises = grouped[archetype];
-      if (exercises.length > 0) {
-        sectionsList.push({
-          title: archetype,
-          data: [exercises.map((ex) => ex.name)], // Single item array containing all exercise names
-        });
-      }
-    }
-    
-    return sectionsList;
-  }, []);
+  const [filter, setFilter] = useState<MovementPattern | null>(null);
+  const [latest, setLatest] = useState<Awaited<ReturnType<typeof latestSessions>>>({});
+  const [historyId, setHistoryId] = useState<string | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      latestSessions().then((rows) => active && setLatest(rows));
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
+
+  const sections = useMemo(
+    () =>
+      PATTERNS.filter((pattern) => !filter || pattern === filter)
+        .map((pattern) => ({
+          title: pattern,
+          data: ALL_EXERCISES.filter((exercise) => exercise.pattern === pattern).sort((a, b) => a.name.localeCompare(b.name)),
+        }))
+        .filter((section) => section.data.length > 0),
+    [filter],
+  );
+  const present = PATTERNS.filter((pattern) => ALL_EXERCISES.some((exercise) => exercise.pattern === pattern));
 
   return (
     <SafeAreaContainer edges={['top', 'left', 'right']}>
-      <ThemedView style={styles.container}>
-        <SectionList
-          sections={sections}
-          keyExtractor={(item, index) => `archetype-${index}`}
-          stickySectionHeadersEnabled={false}
-          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}
-          ItemSeparatorComponent={() => <View style={styles.gap} />}
-          SectionSeparatorComponent={() => <View style={styles.sectionGap} />}
-          ListHeaderComponent={
-            <View style={styles.header}>
-              <ProgramHeader title="Exercises" />
-            </View>
-          }
-          renderSectionHeader={({ section }) => (
-            <View style={styles.sectionHeader}>
-              <ThemedText type="title">{section.title}</ThemedText>
-            </View>
-          )}
-          renderItem={({ item }) => (
-            <Card style={styles.card}>
-              <View style={styles.itemsList}>
-                {item.map((exerciseName) => (
-                  <View key={exerciseName} style={styles.pill}>
-                    <ThemedText style={styles.pillText}>{exerciseName}</ThemedText>
-                  </View>
-                ))}
+      <SectionList
+        style={styles.screen}
+        sections={sections}
+        keyExtractor={(item) => item.id}
+        stickySectionHeadersEnabled={false}
+        contentContainerStyle={styles.content}
+        ListHeaderComponent={
+          <View style={styles.header}>
+            <ProgramHeader title="Exercises" />
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+              <Chip label="All" selected={!filter} onPress={() => setFilter(null)} />
+              {present.map((pattern) => (
+                <Chip key={pattern} label={pattern} selected={filter === pattern} onPress={() => setFilter(pattern)} />
+              ))}
+            </ScrollView>
+          </View>
+        }
+        renderSectionHeader={({ section }) => (
+          <ThemedText type="caption" style={styles.sectionTitle}>
+            {section.title}
+          </ThemedText>
+        )}
+        renderItem={({ item, index, section }) => {
+          const { title } = splitExerciseName(item.name);
+          const meta = exerciseMeta(item.id);
+          return (
+            <Pressable
+              onPress={() => setHistoryId(item.id)}
+              style={({ pressed }) => [
+                styles.row,
+                index === 0 && styles.rowFirst,
+                index === section.data.length - 1 && styles.rowLast,
+                index > 0 && styles.rowDivider,
+                pressed && styles.pressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityHint="Shows past sessions">
+              <View style={styles.flex}>
+                <ThemedText style={styles.name} numberOfLines={1}>
+                  {title}
+                </ThemedText>
+                {meta ? (
+                  <ThemedText style={styles.meta} numberOfLines={1}>
+                    {meta}
+                  </ThemedText>
+                ) : null}
               </View>
-            </Card>
-          )}
-          showsVerticalScrollIndicator={false}
-        />
-      </ThemedView>
+              <ThemedText num style={styles.last}>
+                {lastTopSet(latest[item.id]?.sets, item.id)}
+              </ThemedText>
+              <IconSymbol name="chevron.right" size={13} color={C.t4} />
+            </Pressable>
+          );
+        }}
+      />
+      <ExerciseHistorySheet exerciseId={historyId} onClose={() => setHistoryId(null)} />
     </SafeAreaContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  content: {
-    padding: 16,
-    gap: 12,
-  },
-  sectionHeader: {
-    marginBottom: 6,
-  },
-  header: {
-    gap: 4,
-    marginBottom: 12,
-  },
-  card: {
-    gap: 12,
-  },
-  itemsList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  pill: {
-    backgroundColor: Colors.dark.tintMuted,
-    borderColor: Colors.dark.border,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-  },
-  pillText: {
-    color: Colors.dark.text,
-  },
-  gap: {
-    height: 12,
-  },
-  sectionGap: {
-    height: 5,
-  },
+  screen: { flex: 1, backgroundColor: C.bg },
+  flex: { flex: 1 },
+  content: { padding: 16, paddingBottom: 140 },
+  header: { gap: 14, marginBottom: 4 },
+  chips: { gap: 8, paddingRight: 16 },
+  sectionTitle: { marginTop: 20, marginBottom: 8, marginLeft: 4 },
+  row: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, backgroundColor: C.s1 },
+  rowFirst: { borderTopLeftRadius: Radius.card, borderTopRightRadius: Radius.card },
+  rowLast: { borderBottomLeftRadius: Radius.card, borderBottomRightRadius: Radius.card },
+  rowDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,0.08)' },
+  pressed: { backgroundColor: C.s2 },
+  name: { fontSize: 16, fontWeight: '500' },
+  meta: { fontSize: 13, color: C.t3, marginTop: 1 },
+  last: { ...numStyle, fontSize: 14, color: C.t2 },
 });

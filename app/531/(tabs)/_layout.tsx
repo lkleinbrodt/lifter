@@ -13,5 +13,5 @@ export const unstable_settings = {
 };
 
 export default function FiveThreeOneTabLayout() {
-  return <ProgramTabs basePath="/531" lastTabKey="@last_tab" tabs={tabs} />;
+  return <ProgramTabs tabs={tabs} initialRouteName="index" />;
 }

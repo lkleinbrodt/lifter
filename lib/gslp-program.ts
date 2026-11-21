@@ -116,13 +116,6 @@ function summarizeLog(log: GslpSessionLog): ProgressionLine[] {
   });
 }
 
-/** The progression a finished workout produced, and whether it's still the latest (undoable). */
-export function gslpProgressionFor(state: GslpState, workoutId: string) {
-  const index = state.history.findIndex((log) => log.workoutId === workoutId);
-  if (index === -1) return undefined;
-  return { summary: summarizeLog(state.history[index]), isLatest: index === state.history.length - 1 };
-}
-
 function complete(state: GslpState, workout: Workout) {
   if (workout.source.kind !== 'program' || !isTemplate(workout.source.template)) {
     throw new Error('Not a GSLP workout');
@@ -166,10 +159,7 @@ export function gslpSlotChoices(slot: string | undefined) {
 export function gslpSlotLabel(slot: string | undefined) {
   if (!slot) return undefined;
   if (slot in gslpLifts) return 'Main lift';
-  if (slot.startsWith('partner:')) {
-    const lift = gslpLifts[slot.slice('partner:'.length) as GslpLiftKey];
-    return lift ? `Superset with ${lift.label}` : undefined;
-  }
+  if (slot.startsWith('partner:')) return undefined; // the superset group card shows the pairing
   return gslpSlotChoices(slot)?.label;
 }
 

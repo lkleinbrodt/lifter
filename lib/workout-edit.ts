@@ -1,6 +1,6 @@
 // Pure, immutable edits to a Workout, used by the workout screen. No storage, no React.
 
-import { type TrackingType, getExercise } from './exercises';
+import { type TrackingType, formatLoad, getExercise } from './exercises';
 import { type Workout, type WorkoutExercise, type WorkoutSet, isWorkingSet, newId } from './workout';
 
 type SetPatch = Partial<Pick<WorkoutSet, 'weight' | 'reps' | 'durationSec' | 'done' | 'completedAt' | 'type'>>;
@@ -222,4 +222,71 @@ export function setScheme(sets: WorkoutSet[]): string {
     else groups.push({ label, count: 1 });
   }
   return groups.map((group) => `${group.count}×${group.label}`).join(', ');
+}
+
+/**
+ * Work sets on one line, for a finished exercise: "160 × 5 · 5 · 9" when the load is the
+ * same throughout, else "160×5 · 165×5"; "10 · 10 · 10" for reps; "45s · 45s" for holds.
+ */
+export function summarizeWorkSets(sets: WorkoutSet[], tracking: TrackingType): string {
+  const work = sets.filter(isWorkingSet);
+  const n = (value: number | undefined) => (value === undefined ? '–' : String(Number(value.toFixed(2))));
+  if (tracking === 'duration') return work.map((set) => `${n(set.durationSec)}s`).join(' · ');
+  if (tracking === 'reps') return work.map((set) => n(set.reps)).join(' · ');
+  const loads = work.map((set) => formatLoad(set.weight, tracking) || '–');
+  if (loads.length && loads.every((load) => load === loads[0])) {
+    return `${loads[0]} × ${work.map((set) => n(set.reps)).join(' · ')}`;
+  }
+  return work.map((set, index) => `${loads[index]}×${n(set.reps)}`).join(' · ');
+}
+
+/** Estimated 1RM (Epley): weight × (1 + reps/30), rounded. Undefined without a load. */
+export function estimated1RM(weight: number | undefined, reps: number | undefined) {
+  if (!weight || !reps) return undefined;
+  return Math.round(weight * (1 + reps / 30));
+}
+
+/**
+ * The AMRAP badge for a logged AMRAP set: "★ 9 reps · e1RM 208", or "★ 6 reps" for lifts
+ * without a known total load (added-load or bodyweight). `hit` = met the target reps.
+ */
+export function amrapBadge(set: WorkoutSet, tracking: TrackingType): { label: string; hit: boolean } | undefined {
+  if (set.type !== 'amrap' || !set.done || !set.reps) return undefined;
+  const hit = set.reps >= (set.target?.reps ?? 0);
+  const e1rm = tracking === 'weightReps' ? estimated1RM(set.weight, set.reps) : undefined;
+  return { label: `★ ${set.reps} reps${e1rm ? ` · e1RM ${e1rm}` : ''}`, hit };
+}
+
+export type ExerciseBlock = { key: string; entries: WorkoutExercise[]; letter?: string };
+
+/**
+ * Exercises as display blocks: a superset group becomes one block (all its members, at the
+ * first member's position) lettered A, B, C…; everything else is a block of one.
+ */
+export function exerciseBlocks(exercises: WorkoutExercise[]): ExerciseBlock[] {
+  const blocks: ExerciseBlock[] = [];
+  const seen = new Set<string>();
+  let letters = 0;
+  for (const entry of exercises) {
+    const group = entry.supersetGroup;
+    if (!group) {
+      blocks.push({ key: entry.id, entries: [entry] });
+      continue;
+    }
+    if (seen.has(group)) continue;
+    seen.add(group);
+    const members = exercises.filter((item) => item.supersetGroup === group);
+    if (members.length < 2) blocks.push({ key: entry.id, entries: members });
+    else blocks.push({ key: group, entries: members, letter: String.fromCharCode(65 + letters++) });
+  }
+  return blocks;
+}
+
+/** "A1" for the first member of superset A, else undefined. */
+export function supersetTag(blocks: ExerciseBlock[], entryId: string) {
+  for (const block of blocks) {
+    const index = block.entries.findIndex((entry) => entry.id === entryId);
+    if (index !== -1) return block.letter ? `${block.letter}${index + 1}` : undefined;
+  }
+  return undefined;
 }

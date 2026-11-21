@@ -45,9 +45,3 @@ export function formatPlatesCompact(weight: number | undefined, separator = '·'
   const plates = calculatePlateMath(weight);
   return plates.length === 0 ? 'bar' : plates.map(trim).join(separator);
 }
-
-/** The card's plate line: "160 lb · 45 · 10 · 2.5 /side", or "45 lb · bar". */
-export function formatPlateLine(weight: number) {
-  const plates = formatPlatesCompact(weight, ' · ');
-  return plates === 'bar' ? `${trim(weight)} lb · bar` : `${trim(weight)} lb · ${plates} /side`;
-}

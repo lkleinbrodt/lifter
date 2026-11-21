@@ -1,15 +1,19 @@
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import React, { useEffect, useState } from 'react';
+import * as Haptics from 'expo-haptics';
+
+import { LayoutAnimation, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import Animated, { ZoomIn, interpolateColor, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
+import React, { useEffect, useRef, useState } from 'react';
+import { type MenuAnchor, measureAnchor } from '@/components/ui/action-menu';
+import { PlateDiagram } from './plate-diagram';
 import { ROW_PADDING, SET_COLUMNS, type SetPatch, SetRow, weightHeader } from './set-row';
 import { isBarbellExercise, getExercise, splitExerciseName } from '@/lib/exercises';
-import { previousSetFor, setLabels, setScheme } from '@/lib/workout-edit';
+import { previousSetFor, setLabels, setScheme, summarizeWorkSets } from '@/lib/workout-edit';
 
 import { C, Radius, numStyle } from '@/constants/theme';
 import { Chip } from '@/components/ui/primitives';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { ThemedText } from '@/components/themed-text';
 import type { WorkoutExercise, WorkoutSet } from '@/lib/workout';
-import { formatPlateLine } from '@/lib/plates';
 
 type ExerciseCardProps = {
   entry: WorkoutExercise;
@@ -23,9 +27,18 @@ type ExerciseCardProps = {
   onSetDelete: (setId: string) => void;
   onAddSet: () => void;
   onChoose: (exerciseId: string) => void;
-  onMenu: () => void;
-  onShowHistory: () => void;
+  onMenu: (anchor: MenuAnchor) => void;
+  /** Collapse to one line once every set is checked (off while editing a finished workout). */
+  collapsible?: boolean;
+  /** Inside a superset group card: no container of its own, and an "A1"-style tag before the name. */
+  grouped?: boolean;
+  tag?: string;
 };
+
+/** Barbell cards show a plate diagram for the current set. Flip to compare against Strong's name-only header. */
+const SHOW_PLATE_DIAGRAM = true;
+
+const COLLAPSE_DELAY_MS = 400;
 
 const fmt = (value: number | undefined) => (value === undefined ? '' : String(Number(value.toFixed(2))));
 
@@ -41,7 +54,9 @@ export function ExerciseCard({
   onAddSet,
   onChoose,
   onMenu,
-  onShowHistory,
+  collapsible,
+  grouped,
+  tag,
 }: ExerciseCardProps) {
   const exercise = getExercise(entry.exerciseId);
   const { title, detail } = splitExerciseName(exercise.name);
@@ -49,6 +64,42 @@ export function ExerciseCard({
   const labels = setLabels(entry.sets);
   const header = weightHeader(exercise.tracking);
   const [plates, setPlates] = useState(false);
+  const menuRef = useRef<View>(null);
+  const reduceMotion = useReducedMotion();
+
+  // Finished exercise: collapses to one line shortly after its last check, with a success
+  // haptic and a brief accent glow. Tap to reopen; it re-collapses when its last set is checked again.
+  const allDone = !!collapsible && entry.sets.length > 0 && entry.sets.every((set) => set.done);
+  const [collapsed, setCollapsed] = useState(allDone); // a resumed workout opens already collapsed
+  const [justFinished, setJustFinished] = useState(false);
+  const wasDone = useRef(allDone);
+  const glow = useSharedValue(0);
+  useEffect(() => {
+    if (allDone && !wasDone.current) {
+      wasDone.current = true;
+      const timer = setTimeout(() => {
+        if (!reduceMotion) LayoutAnimation.configureNext(LayoutAnimation.create(260, 'easeInEaseOut', 'opacity'));
+        setCollapsed(true);
+        setJustFinished(true);
+        glow.value = 1;
+        glow.value = withTiming(0, { duration: 1100 });
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }, COLLAPSE_DELAY_MS);
+      return () => clearTimeout(timer);
+    }
+    if (!allDone) {
+      wasDone.current = false;
+      setCollapsed(false);
+    }
+  }, [allDone, reduceMotion, glow]);
+  const glowStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(glow.value, [0, 1], [C.s1, '#27322E']),
+  }));
+  const expand = () => {
+    if (!reduceMotion) LayoutAnimation.configureNext(LayoutAnimation.create(220, 'easeInEaseOut', 'opacity'));
+    setJustFinished(false);
+    setCollapsed(false);
+  };
 
   // Warm-ups collapse to one line once all are checked; tapping it reopens them.
   const warmups = entry.sets.filter((set) => set.type === 'warmup');
@@ -59,7 +110,7 @@ export function ExerciseCard({
   }, [warmupsDone]);
   const hideWarmups = warmupsDone && !warmupsOpen;
 
-  // Plate line follows this card's current set, else its next unchecked set.
+  // The plate diagram follows this card's current set, else its next unchecked set.
   const plateSet = entry.sets.find((set) => set.id === currentSetId) ?? entry.sets.find((set) => !set.done);
   const plateWeight = plateSet?.weight ?? plateSet?.target?.weight;
 
@@ -67,21 +118,51 @@ export function ExerciseCard({
   const subtitle = [detail, mainLift ? scheme : slotLabel].filter(Boolean).join(' · ');
   const showChips = !!choices && choices.length > 1 && !entry.sets.some((set) => set.done);
 
-  return (
-    <View style={[styles.card, entry.supersetGroup && styles.superset]}>
-      <View style={styles.header}>
-        <Pressable style={styles.titleBlock} onPress={onShowHistory} accessibilityRole="button" accessibilityHint="Shows past sessions">
-          <ThemedText style={mainLift ? styles.titleMain : styles.title}>{title}</ThemedText>
-          {subtitle ? <ThemedText type="subhead">{subtitle}</ThemedText> : null}
-          {barbell && plateWeight ? (
-            <ThemedText num style={styles.plateLine}>
-              {formatPlateLine(plateWeight)}
+  if (collapsed) {
+    return (
+      <Animated.View style={[styles.card, styles.cardCollapsed, grouped && styles.cardGrouped, glowStyle]}>
+        <Pressable
+          onPress={expand}
+          style={({ pressed }) => [styles.collapsedRow, pressed && styles.pressed]}
+          accessibilityRole="button"
+          accessibilityLabel={`${title}, done`}
+          accessibilityHint="Shows the sets">
+          <Animated.View entering={justFinished && !reduceMotion ? ZoomIn.springify().damping(12) : undefined} style={styles.doneBadge}>
+            <IconSymbol name="checkmark" size={14} weight="bold" color={C.onAccent} />
+          </Animated.View>
+          <View style={styles.collapsedText}>
+            <View style={styles.nameRow}>
+              {tag ? <SupersetTag tag={tag} /> : null}
+              <ThemedText style={[styles.title, styles.flexShrink]} numberOfLines={1}>
+                {title}
+              </ThemedText>
+            </View>
+            <ThemedText num style={styles.collapsedSets} numberOfLines={1}>
+              {summarizeWorkSets(entry.sets, exercise.tracking)}
             </ThemedText>
-          ) : null}
+          </View>
+          <IconSymbol name="chevron.down" size={14} color={C.t4} />
         </Pressable>
-        <Pressable onPress={onMenu} style={styles.menu} accessibilityLabel="Exercise options">
-          <IconSymbol name="ellipsis" size={20} color={C.t2} />
-        </Pressable>
+      </Animated.View>
+    );
+  }
+
+  return (
+    <View style={[styles.card, grouped && styles.cardGrouped]}>
+      <View style={styles.header}>
+        <View style={styles.titleBlock}>
+          <View style={styles.nameRow}>
+            {tag ? <SupersetTag tag={tag} /> : null}
+            <ThemedText style={[mainLift ? styles.titleMain : styles.title, styles.flexShrink]}>{title}</ThemedText>
+          </View>
+          {subtitle ? <ThemedText type="subhead">{subtitle}</ThemedText> : null}
+          {SHOW_PLATE_DIAGRAM && barbell && plateWeight ? <PlateDiagram weight={plateWeight} /> : null}
+        </View>
+        <View ref={menuRef} collapsable={false}>
+          <Pressable onPress={() => measureAnchor(menuRef.current, onMenu)} style={styles.menu} accessibilityLabel="Exercise options">
+            <IconSymbol name="ellipsis" size={20} color={C.t2} />
+          </Pressable>
+        </View>
       </View>
 
       {showChips ? (
@@ -150,6 +231,7 @@ export function ExerciseCard({
             tracking={exercise.tracking}
             current={set.id === currentSetId}
             plates={barbell && plates}
+            separator={index > 0 && !(hideWarmups && entry.sets[index - 1]?.type === 'warmup')}
             onChange={(patch) => onSetChange(set.id, patch)}
             onDelete={() => onSetDelete(set.id)}
           />
@@ -172,10 +254,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     paddingTop: 14,
   },
-  superset: {
-    borderLeftWidth: 3,
-    borderLeftColor: C.superset,
-  },
+  cardGrouped: { backgroundColor: 'transparent', borderRadius: 0 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  flexShrink: { flexShrink: 1 },
+  tag: { height: 22, minWidth: 28, paddingHorizontal: 6, borderRadius: 6, backgroundColor: C.supersetBg, alignItems: 'center', justifyContent: 'center' },
+  tagText: { ...numStyle, fontSize: 12, fontWeight: '700', color: C.superset },
   header: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -186,7 +269,11 @@ const styles = StyleSheet.create({
   titleBlock: { flex: 1, gap: 2, paddingTop: 2 },
   titleMain: { fontSize: 19, lineHeight: 24, fontWeight: '600' },
   title: { fontSize: 17, lineHeight: 22, fontWeight: '600' },
-  plateLine: { ...numStyle, fontSize: 15, color: C.t1, marginTop: 4 },
+  cardCollapsed: { paddingTop: 0 },
+  collapsedRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14 },
+  doneBadge: { width: 26, height: 26, borderRadius: 13, backgroundColor: C.accent, alignItems: 'center', justifyContent: 'center' },
+  collapsedText: { flex: 1, gap: 2 },
+  collapsedSets: { ...numStyle, fontSize: 15, color: C.t2 },
   menu: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginTop: -8 },
   chips: { gap: 8, paddingHorizontal: 16, paddingTop: 10 },
   columns: {
@@ -214,3 +301,13 @@ const styles = StyleSheet.create({
   addSetText: { fontSize: 15, fontWeight: '600', color: C.t2 },
   pressed: { opacity: 0.6 },
 });
+
+function SupersetTag({ tag }: { tag: string }) {
+  return (
+    <View style={styles.tag}>
+      <ThemedText num style={styles.tagText}>
+        {tag}
+      </ThemedText>
+    </View>
+  );
+}

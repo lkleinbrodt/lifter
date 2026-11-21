@@ -7,12 +7,21 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import React from 'react';
 import { ThemedText } from '@/components/themed-text';
 
-// Screen title plus a chip showing the active program; tapping it returns to the program picker.
+// Screen title. GSLP shows the large title only (program switching and settings live in its
+// Settings tab); 5/3/1 keeps its program-switch chip and gear until it's rebuilt.
 export function ProgramHeader({ title }: { title: string }) {
   const router = useRouter();
   const segments = useSegments();
   const programKey = segments[0];
   const program = isProgramKey(programKey) ? getProgram(programKey) : null;
+
+  if (programKey === 'gslp') {
+    return (
+      <ThemedText type="largeTitle" style={styles.largeTitle}>
+        {title}
+      </ThemedText>
+    );
+  }
 
   return (
     <View style={styles.row}>
@@ -56,6 +65,7 @@ export function ProgramHeader({ title }: { title: string }) {
 }
 
 const styles = StyleSheet.create({
+  largeTitle: { marginTop: 4 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

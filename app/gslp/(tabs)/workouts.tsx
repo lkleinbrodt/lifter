@@ -1,72 +1,86 @@
+// GSLP Workout tab: the next session as a hero card (or the live workout while one is in
+// progress), the other template and an empty workout, and the last finished session.
+
 import * as Haptics from 'expo-haptics';
 
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import {
-  type GslpSessionLog,
+  type GslpLift,
+  type GslpLiftKey,
   type GslpState,
-  type Outcome,
+  type GslpWorkoutKey,
   defaultGslpState,
-  describeOutcome,
-  formatLiftWeight,
   formatNumber,
   formatScheme,
+  gslpLiftOrder,
   gslpLifts,
   gslpWorkouts,
   isWeightSet,
   nextSession,
   nextWorkoutKey,
+  pickedAccessory,
   sessionPosition,
-  undoLastSession,
 } from '@/lib/gslp';
-import React, { useCallback, useState } from 'react';
-import { getActiveWorkout, reopenGslpWorkout, startEmptyWorkout, startGslpWorkout } from '@/lib/workout-actions';
-import { loadGslpState, saveGslpState } from '@/lib/gslp-storage';
-
-import type { Workout } from '@/lib/workout';
+import { ActionMenu, type MenuAnchor, type MenuState, measureAnchor } from '@/components/ui/action-menu';
+import { C, Radius, numStyle } from '@/constants/theme';
+import React, { useCallback, useRef, useState } from 'react';
+import { formatDuration, formatMinutes } from '@/lib/workout-edit';
+import { formatLoad, getExercise, splitExerciseName } from '@/lib/exercises';
+import { type TopSet, getActiveWorkout, gslpLiftHistory, reopenGslpWorkout, startEmptyWorkout, startGslpWorkout } from '@/lib/workout-actions';
+import { gslpTemplateName, workoutDisplayName } from '@/lib/workout-names';
+import { restRemaining, useSession } from '@/lib/session-store';
+import { type Workout, isWorkingSet } from '@/lib/workout';
+import { useFocusEffect, useRouter } from 'expo-router';
 
 import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
-import { Colors } from '@/constants/theme';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { Pill, SectionHeader } from '@/components/ui/primitives';
 import { ProgramHeader } from '@/components/program-header';
 import { SafeAreaContainer } from '@/components/safe-area';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { useFocusEffect } from '@react-navigation/native';
-import { useRouter } from 'expo-router';
+import { listWorkouts } from '@/lib/db';
+import { loadGslpState } from '@/lib/gslp-storage';
+import { nextUpFor } from '@/components/workout/next-up';
+import { useNow } from '@/components/workout/rest-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const CYCLE_LENGTH = 6; // A/B/A + B/A/B
 
-export default function GslpWorkoutsScreen() {
+const liftByExercise = new Map(gslpLiftOrder.map((key) => [gslpLifts[key].exerciseId, gslpLifts[key]] as const));
+
+export default function GslpWorkoutScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [state, setState] = useState<GslpState>(defaultGslpState);
   const [active, setActive] = useState<Workout | null>(null);
+  const [last, setLast] = useState<Workout | null>(null);
   const [starting, setStarting] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [menu, setMenu] = useState<MenuState | null>(null);
+  const [lastTops, setLastTops] = useState<Partial<Record<GslpLiftKey, TopSet[]>>>({});
+
+  const load = useCallback(async () => {
+    const [stored, current, [latest], tops] = await Promise.all([
+      loadGslpState(),
+      getActiveWorkout(),
+      listWorkouts({ limit: 1 }),
+      gslpLiftHistory(1),
+    ]);
+    setLastTops(tops);
+    setState(stored);
+    setActive(current);
+    setLast(latest ?? null);
+    setLoading(false);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
-      let mounted = true;
-      Promise.all([loadGslpState(), getActiveWorkout()]).then(([stored, current]) => {
-        if (mounted) {
-          setState(stored);
-          setActive(current);
-          setLoading(false);
-        }
-      });
-      return () => {
-        mounted = false;
-      };
-    }, []),
+      void load();
+    }, [load]),
   );
 
   const start = useCallback(
     async (begin: () => Promise<Workout>) => {
-      if (active) {
-        router.push(`/workout/${active.id}`);
-        return;
-      }
       setStarting(true);
       try {
         const workout = await begin();
@@ -75,319 +89,371 @@ export default function GslpWorkoutsScreen() {
         setStarting(false);
       }
     },
-    [active, router],
+    [router],
   );
 
-  const handleUndo = useCallback(() => {
-    const workoutId = state.history.at(-1)?.workoutId;
-    Alert.alert(
-      'Undo last session?',
-      workoutId
-        ? 'Restores the weights it started from and reopens the workout so you can edit it.'
-        : 'Removes it from history and restores the weights it started from.',
-      [
+  const undoAndReopen = useCallback(
+    (workoutId: string) =>
+      Alert.alert('Undo and reopen?', 'Restores the GSLP weights from before this workout and reopens it for editing.', [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Undo',
+          text: 'Reopen',
           style: 'destructive',
           onPress: async () => {
-            if (workoutId) {
-              const reopened = await reopenGslpWorkout(workoutId);
-              if (!reopened) {
-                Alert.alert("Can't undo", 'Finish or discard the workout in progress first.');
-                return;
-              }
-              setState(await loadGslpState());
-              router.push(`/workout/${workoutId}`);
-            } else {
-              const next = undoLastSession(state);
-              setState(next);
-              await saveGslpState(next);
+            const reopened = await reopenGslpWorkout(workoutId);
+            if (!reopened) {
+              Alert.alert("Can't reopen", 'Finish or discard the workout in progress first.');
+              return;
             }
             void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            await load();
+            router.push(`/workout/${workoutId}`);
           },
         },
-      ],
-    );
-  }, [router, state]);
+      ]),
+    [load, router],
+  );
 
   if (loading) {
     return (
-      <ThemedView style={styles.centered}>
-        <ThemedText>Loading workouts…</ThemedText>
-      </ThemedView>
+      <View style={styles.centered}>
+        <ActivityIndicator color={C.accent} />
+      </View>
     );
   }
 
   const next = nextSession(state);
-  const position = sessionPosition(next.index);
-  const workout = gslpWorkouts[next.workout];
+  const other = nextWorkoutKey(next.workout);
   const weightsMissing = next.lifts.some((lift) => !isWeightSet(lift, state.weights));
-  const cycleStart = next.index - (next.index % CYCLE_LENGTH);
-  const history = [...state.history].reverse();
 
   return (
     <SafeAreaContainer edges={['top', 'right', 'left']}>
-      <ThemedView style={styles.container}>
-        <ScrollView
-          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
-          showsVerticalScrollIndicator={false}>
-          <ProgramHeader title="Workouts" />
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]}
+        showsVerticalScrollIndicator={false}>
+        <ProgramHeader title="Workout" />
 
-          {weightsMissing ? (
-            <Card style={styles.emptyCard}>
-              <ThemedText type="defaultSemiBold">Set your starting weights first</ThemedText>
-              <ThemedText style={styles.subtle}>
-                Go to the Weights tab and enter a starting weight for each lift in this workout.
-              </ThemedText>
-            </Card>
-          ) : null}
-
-          <View style={styles.rotation}>
-            {Array.from({ length: CYCLE_LENGTH }, (_, offset) => {
-              const index = cycleStart + offset;
-              const done = index < next.index;
-              const isNext = index === next.index;
-              return (
-                <React.Fragment key={index}>
-                  {offset === 3 ? <View style={styles.rotationDivider} /> : null}
-                  <View style={[styles.rotationPill, done && styles.rotationDone, isNext && styles.rotationNext]}>
-                    <ThemedText
-                      type="defaultSemiBold"
-                      style={[styles.rotationText, done && styles.rotationTextDone, isNext && styles.rotationTextNext]}>
-                      {index % 2 === 0 ? 'A' : 'B'}
-                    </ThemedText>
-                  </View>
-                </React.Fragment>
-              );
-            })}
-          </View>
-
-          <Pressable onPress={() => start(() => startGslpWorkout(next.workout))} disabled={weightsMissing || starting} accessibilityRole="button">
-            {({ pressed }) => (
-              <Card style={[styles.nextCard, pressed && styles.pressed]}>
-                <ThemedText type="label" style={styles.tintLabel}>
-                  Next up · Week {position.week} · Day {position.day}
+        {active ? (
+          <LiveCard workout={active} onResume={() => router.push(`/workout/${active.id}`)} />
+        ) : (
+          <>
+            <NextCard
+              state={state}
+              lastTops={lastTops}
+              template={next.workout}
+              index={next.index}
+              starting={starting}
+              disabled={weightsMissing}
+              onStart={() => start(() => startGslpWorkout(next.workout))}
+            />
+            {weightsMissing ? (
+              <Pressable onPress={() => router.push('/gslp/settings')} hitSlop={6}>
+                <ThemedText style={styles.missing}>
+                  Some weights aren&apos;t set. <ThemedText style={styles.link}>Set them in Settings ›</ThemedText>
                 </ThemedText>
-                <ThemedText type="title">
-                  {workout.label} · {workout.focus}
-                </ThemedText>
-                <View style={styles.liftList}>
-                  {next.lifts.map((lift) => (
-                    <View key={lift.key} style={styles.liftRow}>
-                      <ThemedText style={styles.liftName}>{lift.label}</ThemedText>
-                      <ThemedText style={styles.subtle}>
-                        {isWeightSet(lift, state.weights) ? formatLiftWeight(lift, state.weights[lift.key]) : '—'} ·{' '}
-                        {formatScheme(lift)}
-                      </ThemedText>
-                    </View>
-                  ))}
-                </View>
-                <Button
-                  title={active ? 'Resume Workout' : 'Start Workout'}
-                  loading={starting}
-                  disabled={weightsMissing && !active}
-                  onPress={() => start(() => startGslpWorkout(next.workout))}
-                />
-              </Card>
-            )}
-          </Pressable>
-
-          {active ? (
-            <ThemedText style={styles.subtle}>Workout in progress: {active.name}. Finish or discard it to start another.</ThemedText>
-          ) : (
+              </Pressable>
+            ) : null}
             <View style={styles.altRow}>
               <Button
-                title={`Do ${gslpWorkouts[nextWorkoutKey(next.workout)].label.replace('Workout ', '')} instead`}
-                variant="secondary"
-                disabled={weightsMissing || starting}
-                style={styles.altButton}
-                onPress={() => start(() => startGslpWorkout(nextWorkoutKey(next.workout)))}
-              />
-              <Button
-                title="Empty workout"
+                title={`Do ${other} instead`}
                 variant="secondary"
                 disabled={starting}
-                style={styles.altButton}
-                onPress={() => start(startEmptyWorkout)}
+                style={styles.flex}
+                onPress={() => start(() => startGslpWorkout(other))}
               />
+              <Button title="Empty workout" variant="secondary" disabled={starting} style={styles.flex} onPress={() => start(startEmptyWorkout)} />
             </View>
-          )}
+          </>
+        )}
 
-          <ThemedText type="subtitle" style={styles.historyTitle}>
-            History
-          </ThemedText>
-          {history.length === 0 ? (
-            <ThemedText style={styles.subtle}>No sessions logged yet.</ThemedText>
-          ) : (
-            history.map((session, i) => (
-              <SessionCard
-                key={session.id}
-                session={session}
-                index={state.history.length - 1 - i}
-                onUndo={i === 0 ? handleUndo : undefined}
-              />
-            ))
-          )}
-        </ScrollView>
-      </ThemedView>
+        {last ? (
+          <View style={styles.section}>
+            <SectionHeader title="Last session" action="History ›" onAction={() => router.push('/gslp/history')} />
+            <LastSessionCard
+              workout={last}
+              state={state}
+              onOpen={() => router.push(`/workout/${last.id}`)}
+              onMenu={
+                state.history.at(-1)?.workoutId === last.id && !active
+                  ? (anchor) =>
+                      setMenu({
+                        anchor,
+                        items: [{ label: 'Undo & reopen', icon: 'arrow.uturn.backward', destructive: true, onPress: () => undoAndReopen(last.id) }],
+                      })
+                  : undefined
+              }
+            />
+          </View>
+        ) : null}
+      </ScrollView>
+      <ActionMenu menu={menu} onClose={() => setMenu(null)} />
     </SafeAreaContainer>
   );
 }
 
-const outcomeColor: Record<Outcome, string> = {
-  progress: Colors.dark.tint,
-  double: Colors.dark.tint,
-  deload: Colors.dark.error,
-};
+// ---- Next up ----
 
-function SessionCard({ session, index, onUndo }: { session: GslpSessionLog; index: number; onUndo?: () => void }) {
-  const position = sessionPosition(index);
-  const date = new Date(session.date).toLocaleDateString(undefined, {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
+function CycleDots({ index }: { index: number }) {
+  const cycleStart = index - (index % CYCLE_LENGTH);
+  return (
+    <View style={styles.dots} accessibilityLabel={`Session ${(index % CYCLE_LENGTH) + 1} of ${CYCLE_LENGTH} in this cycle`}>
+      {Array.from({ length: CYCLE_LENGTH }, (_, offset) => {
+        const at = cycleStart + offset;
+        return (
+          <React.Fragment key={offset}>
+            {offset === 3 ? <View style={styles.dotDivider} /> : null}
+            <View style={[styles.dot, at < index && styles.dotDone, at === index && styles.dotNext]} />
+          </React.Fragment>
+        );
+      })}
+    </View>
+  );
+}
+
+/** The step from last session's top set to today's weight: "+2.5", or "↓ 10" after a deload. */
+function jumpPill(state: GslpState, lastTops: Partial<Record<GslpLiftKey, TopSet[]>>, lift: GslpLift) {
+  const last = lastTops[lift.key]?.at(-1);
+  if (!last) return null;
+  const delta = state.weights[lift.key] - last.weight;
+  if (delta > 0) return <Pill label={`+${formatNumber(delta)}`} tone="accent" num />;
+  if (delta < 0) return <Pill label={`↓ ${formatNumber(-delta)}`} tone="deload" num />;
+  return null;
+}
+
+function NextCard({
+  state,
+  lastTops,
+  template,
+  index,
+  starting,
+  disabled,
+  onStart,
+}: {
+  state: GslpState;
+  lastTops: Partial<Record<GslpLiftKey, TopSet[]>>;
+  template: GslpWorkoutKey;
+  index: number;
+  starting: boolean;
+  disabled: boolean;
+  onStart: () => void;
+}) {
+  const { week, day } = sessionPosition(index);
+  const config = gslpWorkouts[template];
+  const lifts = nextSession(state).lifts;
+  const withIds = [
+    ...Object.values(config.partners),
+    ...config.accessories.filter((slot) => !slot.optional).map((slot) => pickedAccessory(state.accessoryPicks, slot.archetype).exerciseId),
+  ].filter((id): id is string => !!id);
+  const withNames = [...new Set(withIds.map((id) => splitExerciseName(getExercise(id).name).title.toLowerCase()))];
+
+  return (
+    <View style={styles.hero}>
+      <View style={styles.eyebrowRow}>
+        <ThemedText type="caption" style={styles.eyebrow}>
+          GSLP · Week {week} · Day {day}
+        </ThemedText>
+        <CycleDots index={index} />
+      </View>
+      <ThemedText style={styles.heroTitle}>{gslpTemplateName(template)}</ThemedText>
+      <View style={styles.lifts}>
+        {lifts.map((lift) => {
+          const { tracking } = getExercise(lift.exerciseId);
+          const weight = state.weights[lift.key];
+          return (
+            <View key={lift.key} style={styles.liftRow}>
+              <View style={styles.flex}>
+                <ThemedText style={styles.liftName}>{lift.label}</ThemedText>
+                <ThemedText num style={styles.scheme}>
+                  {formatScheme(lift)}
+                </ThemedText>
+              </View>
+              {jumpPill(state, lastTops, lift)}
+              <ThemedText num style={styles.liftWeight}>
+                {isWeightSet(lift, state.weights) ? formatLoad(weight, tracking) : '—'}
+              </ThemedText>
+            </View>
+          );
+        })}
+      </View>
+      {withNames.length ? (
+        <ThemedText type="subhead" style={styles.withLine}>
+          With {withNames.join(', ')}
+        </ThemedText>
+      ) : null}
+      <Button title={`Start ${template}`} loading={starting} disabled={disabled} onPress={onStart} />
+    </View>
+  );
+}
+
+// ---- In progress ----
+
+function LiveCard({ workout, onResume }: { workout: Workout; onResume: () => void }) {
+  const { rest } = useSession();
+  const now = useNow(true);
+  const elapsed = Math.max(0, Math.round((now - new Date(workout.startedAt).getTime()) / 1000));
+  const left = restRemaining(rest, now);
+  const sets = workout.exercises.flatMap((entry) => entry.sets);
+  const done = sets.filter((set) => set.done).length;
+  const upNext = nextUpFor(workout);
+
+  return (
+    <View style={styles.hero}>
+      <View style={styles.eyebrowRow}>
+        <ThemedText type="caption" style={styles.eyebrow}>
+          In progress
+        </ThemedText>
+        <ThemedText num style={styles.elapsed}>
+          {formatDuration(elapsed)}
+        </ThemedText>
+      </View>
+      <View style={styles.liveTitleRow}>
+        <ThemedText style={[styles.heroTitle, styles.flex]}>{workoutDisplayName(workout)}</ThemedText>
+        <ThemedText num style={styles.counter}>
+          {done}/{sets.length}
+        </ThemedText>
+      </View>
+      <View style={styles.progress}>
+        {workout.exercises.map((entry) => {
+          const fraction = entry.sets.length ? entry.sets.filter((set) => set.done).length / entry.sets.length : 0;
+          return (
+            <View key={entry.id} style={styles.progressSegment}>
+              <View style={[styles.progressFill, { width: `${fraction * 100}%` }]} />
+            </View>
+          );
+        })}
+      </View>
+      {upNext ? (
+        <View style={styles.upNext}>
+          <ThemedText type="caption">Up next</ThemedText>
+          <View style={styles.upNextRow}>
+            <ThemedText style={[styles.liftName, styles.flex]} numberOfLines={1}>
+              {upNext.name} <ThemedText style={styles.upNextSet}>· {upNext.set}</ThemedText>
+            </ThemedText>
+            <ThemedText num style={styles.upNextNumbers}>
+              {upNext.numbers}
+            </ThemedText>
+          </View>
+        </View>
+      ) : null}
+      {left !== null ? (
+        <View style={styles.restRow}>
+          <ThemedText type="caption">Rest</ThemedText>
+          <ThemedText num style={styles.restTime}>
+            {formatDuration(left)}
+          </ThemedText>
+        </View>
+      ) : null}
+      <Button title="Resume" onPress={onResume} />
+    </View>
+  );
+}
+
+// ---- Last session ----
+
+function LastSessionCard({
+  workout,
+  state,
+  onOpen,
+  onMenu,
+}: {
+  workout: Workout;
+  state: GslpState;
+  onOpen: () => void;
+  onMenu?: (anchor: MenuAnchor) => void;
+}) {
+  const menuRef = useRef<View>(null);
+  const start = new Date(workout.startedAt);
+  const duration = workout.finishedAt ? (new Date(workout.finishedAt).getTime() - start.getTime()) / 1000 : 0;
+  const log = state.history.find((session) => session.workoutId === workout.id);
+  const mainLifts = workout.exercises.flatMap((entry) => {
+    const lift = liftByExercise.get(entry.exerciseId);
+    if (!lift) return [];
+    const working = entry.sets.filter((set) => isWorkingSet(set) && set.done);
+    const top = working.find((set) => set.type === 'amrap') ?? working.at(-1);
+    if (!top) return [];
+    const { tracking } = getExercise(entry.exerciseId);
+    const nextWeight = log?.lifts.find((item) => item.lift === lift.key)?.nextWeight;
+    return [{ lift, set: `${formatLoad(top.weight, tracking) || '–'} × ${top.reps ?? '–'}`, next: nextWeight, tracking, weight: top.weight }];
   });
 
   return (
-    <Card style={styles.historyCard}>
-      <View style={styles.historyHeader}>
-        <View style={styles.historyHeaderText}>
-          <ThemedText type="label">
-            {date} · Week {position.week} · Day {position.day}
+    <Pressable onPress={onOpen} style={({ pressed }) => [styles.lastCard, pressed && styles.pressed]} accessibilityRole="button">
+      <View style={styles.lastHeader}>
+        <View style={styles.flex}>
+          <ThemedText style={styles.lastTitle}>{workoutDisplayName(workout)}</ThemedText>
+          <ThemedText type="subhead">
+            {start.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+            {duration > 0 ? ` · ${formatMinutes(duration)}` : ''}
           </ThemedText>
-          <ThemedText type="defaultSemiBold">{gslpWorkouts[session.workout].label}</ThemedText>
         </View>
-        {onUndo ? (
-          <Pressable onPress={onUndo} hitSlop={8} accessibilityRole="button" accessibilityLabel="Undo last session">
-            <ThemedText style={styles.undo}>Undo</ThemedText>
-          </Pressable>
+        {onMenu ? (
+          <View ref={menuRef} collapsable={false}>
+            <Pressable onPress={() => measureAnchor(menuRef.current, onMenu)} style={styles.menuButton} accessibilityLabel="Session options">
+              <IconSymbol name="ellipsis" size={20} color={C.t2} />
+            </Pressable>
+          </View>
         ) : null}
       </View>
-      {session.lifts.map((log) => {
-        const lift = gslpLifts[log.lift];
-        return (
-          <View key={log.lift} style={styles.liftRow}>
-            <ThemedText style={styles.liftName}>{lift.label}</ThemedText>
-            <ThemedText style={styles.subtle}>
-              {formatNumber(log.weight)} × {log.amrapReps ?? '—'}
-            </ThemedText>
-            <ThemedText style={[styles.outcome, { color: outcomeColor[log.outcome] }]}>
-              {describeOutcome(log.outcome, log.weight, log.nextWeight)}
-            </ThemedText>
-          </View>
-        );
-      })}
-    </Card>
+      {mainLifts.map(({ lift, set, next, tracking, weight }) => (
+        <View key={lift.key} style={styles.lastRow}>
+          <ThemedText style={[styles.lastLift, styles.flex]}>{lift.label}</ThemedText>
+          <ThemedText num style={styles.lastSet}>
+            {set}
+            {next !== undefined ? (
+              <ThemedText num style={[styles.lastSet, { color: next < (weight ?? 0) ? C.deload : C.accent }]}>
+                {'  → '}
+                {formatLoad(next, tracking)}
+              </ThemedText>
+            ) : null}
+          </ThemedText>
+        </View>
+      ))}
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollContent: {
-    gap: 16,
-    padding: 16,
-  },
-  subtle: {
-    color: Colors.dark.textMuted,
-  },
-  tintLabel: {
-    color: Colors.dark.tint,
-  },
-  emptyCard: {
-    gap: 8,
-    borderColor: Colors.dark.tint,
-    borderWidth: 1,
-  },
-  rotation: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  rotationDivider: {
-    width: 1,
-    height: 24,
-    backgroundColor: Colors.dark.border,
-    marginHorizontal: 4,
-  },
-  rotationPill: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    backgroundColor: Colors.dark.surface,
-  },
-  rotationDone: {
-    backgroundColor: Colors.dark.tintMuted,
-  },
-  rotationNext: {
-    borderColor: Colors.dark.tint,
-  },
-  rotationText: {
-    color: Colors.dark.textMuted,
-  },
-  rotationTextDone: {
-    color: Colors.dark.tint,
-  },
-  rotationTextNext: {
-    color: Colors.dark.text,
-  },
-  nextCard: {
-    gap: 12,
-  },
-  pressed: {
-    opacity: 0.9,
-  },
-  altRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  altButton: {
-    flex: 1,
-  },
-  liftList: {
-    gap: 8,
-  },
-  liftRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 8,
-  },
-  liftName: {
-    flex: 1,
-  },
-  historyTitle: {
-    opacity: 0.8,
-    marginTop: 8,
-  },
-  historyCard: {
-    gap: 8,
-  },
-  historyHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 4,
-  },
-  historyHeaderText: {
-    flex: 1,
-    gap: 4,
-  },
-  undo: {
-    color: Colors.dark.tint,
-  },
-  outcome: {
-    fontSize: 12,
-    minWidth: 64,
-    textAlign: 'right',
-  },
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  flex: { flex: 1 },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: C.bg },
+  content: { padding: 16, gap: 12, backgroundColor: C.bg, flexGrow: 1 },
+  hero: { backgroundColor: C.s1, borderRadius: Radius.hero, padding: 18, gap: 14, marginTop: 8 },
+  eyebrowRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  eyebrow: { color: C.accent },
+  heroTitle: { fontSize: 27, lineHeight: 32, fontWeight: '700' },
+  dots: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.s3 },
+  dotDone: { backgroundColor: C.accent },
+  dotNext: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: C.accent },
+  dotDivider: { width: 1, height: 10, backgroundColor: C.t4, marginHorizontal: 2 },
+  lifts: { gap: 12 },
+  liftRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  liftName: { fontSize: 17, fontWeight: '600' },
+  scheme: { ...numStyle, fontSize: 13, color: C.t3, marginTop: 1 },
+  liftWeight: { ...numStyle, fontSize: 22, fontWeight: '600', minWidth: 62, textAlign: 'right' },
+  withLine: { color: C.t2 },
+  missing: { fontSize: 15, color: C.t2, paddingHorizontal: 4 },
+  link: { fontSize: 15, color: C.accent },
+  altRow: { flexDirection: 'row', gap: 12 },
+  section: { gap: 10, marginTop: 14 },
+  elapsed: { ...numStyle, fontSize: 15, color: C.accent },
+  liveTitleRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 12 },
+  counter: { ...numStyle, fontSize: 17, color: C.t2, paddingBottom: 3 },
+  progress: { flexDirection: 'row', gap: 3 },
+  progressSegment: { flex: 1, height: 4, borderRadius: 2, backgroundColor: C.s3, overflow: 'hidden' },
+  progressFill: { height: 4, backgroundColor: C.accent },
+  upNext: { gap: 4 },
+  upNextRow: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },
+  upNextSet: { fontSize: 17, color: C.t2 },
+  upNextNumbers: { ...numStyle, fontSize: 17, color: C.t1 },
+  restRow: { flexDirection: 'row', alignItems: 'baseline', gap: 10 },
+  restTime: { ...numStyle, fontSize: 20, fontWeight: '600', color: C.accent },
+  lastCard: { backgroundColor: C.s1, borderRadius: Radius.card, padding: 16, gap: 10 },
+  pressed: { opacity: 0.85 },
+  lastHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  lastTitle: { fontSize: 17, fontWeight: '600', marginBottom: 4 },
+  menuButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginTop: -10, marginRight: -10 },
+  lastRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
+  lastLift: { fontSize: 15, color: C.t2 },
+  lastSet: { ...numStyle, fontSize: 15, color: C.t1 },
 });

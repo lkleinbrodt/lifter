@@ -1,7 +1,6 @@
 import * as Haptics from 'expo-haptics';
 
 import {
-  ActionSheetIOS,
   ActivityIndicator,
   Alert,
   AppState,
@@ -21,8 +20,9 @@ import {
   addExercise,
   addSet,
   currentSet,
+  exerciseBlocks,
+  supersetTag,
   formatDuration,
-  formatMinutes,
   hasDoneSets,
   removeExercise,
   removeSet,
@@ -35,24 +35,25 @@ import {
 } from '@/lib/workout-edit';
 import { deleteFinishedWorkout, discardWorkout, finishWorkout, lastSetsFor, reopenGslpWorkout } from '@/lib/workout-actions';
 import { RestBar } from '@/components/workout/rest-bar';
-import { restSecFor, getExercise } from '@/lib/exercises';
-import { startRest } from '@/lib/session-store';
+import { restSecFor, getExercise, splitExerciseName } from '@/lib/exercises';
+import { setActiveWorkout, startRest, summarizeActive } from '@/lib/session-store';
 import { getWorkout, saveWorkout } from '@/lib/db';
-import { gslpOptionalSlots, gslpProgressionFor, gslpSlotChoices, gslpSlotLabel } from '@/lib/gslp-program';
+import { gslpOptionalSlots, gslpSlotChoices, gslpSlotLabel } from '@/lib/gslp-program';
 
 import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
 import { C, Colors, Fonts, numStyle } from '@/constants/theme';
 import { ExerciseCard } from '@/components/workout/exercise-card';
+import { SupersetGroup } from '@/components/workout/superset-group';
+import { nextUpFor } from '@/components/workout/next-up';
+import { WorkoutSummary } from '@/components/workout/workout-summary';
 import { ExerciseHistorySheet } from '@/components/workout/exercise-history-sheet';
 import { ExercisePicker } from '@/components/workout/exercise-picker';
-import type { ProgressionLine } from '@/lib/program-module';
 import type { SetPatch } from '@/components/workout/set-row';
 import { ThemedText } from '@/components/themed-text';
-import { formatSet } from '@/components/workout/set-row';
 import { gslpLifts, sessionPosition } from '@/lib/gslp';
 import { workoutDisplayName } from '@/lib/workout-names';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { ActionMenu, type MenuAnchor, type MenuState, measureAnchor } from '@/components/ui/action-menu';
 import { loadGslpState } from '@/lib/gslp-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -78,7 +79,6 @@ export default function WorkoutScreen() {
   const [missing, setMissing] = useState(false);
   const [gslp, setGslp] = useState<GslpState>(defaultGslpState);
   const [previous, setPrevious] = useState<Record<string, WorkoutSet[]>>({});
-  const [summary, setSummary] = useState<ProgressionLine[] | undefined>();
   const [picker, setPicker] = useState<PickerMode>(null);
   const [historyId, setHistoryId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -86,6 +86,8 @@ export default function WorkoutScreen() {
   const editingRef = useRef(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const notesRef = useRef<TextInput>(null);
+  const [menu, setMenu] = useState<MenuState | null>(null);
+  const headerMenuRef = useRef<View>(null);
   const [now, setNow] = useState(() => Date.now());
 
   // ---- Load + autosave ----
@@ -108,6 +110,7 @@ export default function WorkoutScreen() {
     const next = fn(current);
     workoutRef.current = next;
     setWorkout(next);
+    if (!next.finishedAt) setActiveWorkout(summarizeActive(next)); // keeps the minibar's set count live
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       saveTimer.current = null;
@@ -189,65 +192,59 @@ export default function WorkoutScreen() {
     [apply],
   );
 
-  const openMenu = (entryId: string) => {
+  const openMenu = (entryId: string, anchor: MenuAnchor) => {
     const entry = workoutRef.current?.exercises.find((item) => item.id === entryId);
     if (!entry) return;
     const isMainLift = !!entry.slot && entry.slot in gslpLifts;
-    const options = [
-      { label: 'Exercise history', run: () => setHistoryId(entry.exerciseId) },
-      ...(isMainLift ? [] : [{ label: 'Replace exercise', run: () => setPicker({ kind: 'replace', entryId }) }]),
-      {
-        label: 'Remove exercise',
-        destructive: true,
-        run: () =>
-          Alert.alert(
-            'Remove exercise?',
-            isMainLift ? 'GSLP will count this lift as a missed session.' : undefined,
-            [
+    setMenu({
+      anchor,
+      title: splitExerciseName(getExercise(entry.exerciseId).name).title,
+      items: [
+        { label: 'History', icon: 'clock.arrow.circlepath', onPress: () => setHistoryId(entry.exerciseId) },
+        ...(isMainLift
+          ? []
+          : [{ label: 'Replace', icon: 'arrow.left.arrow.right' as const, onPress: () => setPicker({ kind: 'replace', entryId }) }]),
+        {
+          label: 'Remove',
+          icon: 'trash',
+          destructive: true,
+          onPress: () =>
+            Alert.alert('Remove exercise?', isMainLift ? 'GSLP will count this lift as a missed session.' : undefined, [
               { text: 'Cancel', style: 'cancel' },
               { text: 'Remove', style: 'destructive', onPress: () => apply((w) => removeExercise(w, entryId)) },
-            ],
-          ),
-      },
-    ];
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        {
-          title: getExercise(entry.exerciseId).name,
-          options: [...options.map((o) => o.label), 'Cancel'],
-          cancelButtonIndex: options.length,
-          destructiveButtonIndex: options.findIndex((o) => o.destructive),
-          userInterfaceStyle: 'dark',
+            ]),
         },
-        (index) => options[index]?.run(),
-      );
-    } else {
-      Alert.alert(getExercise(entry.exerciseId).name, undefined, [
-        ...options.map((o) => ({ text: o.label, onPress: o.run })),
-        { text: 'Cancel', style: 'cancel' as const },
-      ]);
-    }
+      ],
+    });
   };
 
-  const openWorkoutMenu = () => {
+  const openWorkoutMenu = (anchor: MenuAnchor) => {
     const hasNotes = !!workoutRef.current?.notes;
-    const options = [
-      {
-        label: hasNotes ? 'Edit note' : 'Add note',
-        run: () => {
-          setNotesOpen(true);
-          setTimeout(() => notesRef.current?.focus(), 50);
+    setMenu({
+      anchor,
+      items: [
+        {
+          label: hasNotes ? 'Edit note' : 'Add note',
+          icon: 'note.text',
+          onPress: () => {
+            setNotesOpen(true);
+            setTimeout(() => notesRef.current?.focus(), 50);
+          },
         },
-      },
-    ];
-    if (Platform.OS === 'ios') {
-      ActionSheetIOS.showActionSheetWithOptions(
-        { options: [...options.map((o) => o.label), 'Cancel'], cancelButtonIndex: options.length, userInterfaceStyle: 'dark' },
-        (index) => options[index]?.run(),
-      );
-    } else {
-      Alert.alert('Workout', undefined, [...options.map((o) => ({ text: o.label, onPress: o.run })), { text: 'Cancel', style: 'cancel' as const }]);
-    }
+      ],
+    });
+  };
+
+  const openSummaryMenu = (anchor: MenuAnchor) => {
+    const latest = !!workoutRef.current && gslp.history.at(-1)?.workoutId === workoutRef.current.id;
+    setMenu({
+      anchor,
+      items: [
+        { label: 'Edit', icon: 'pencil', onPress: startEditing },
+        ...(latest ? [{ label: 'Undo & reopen', icon: 'arrow.uturn.backward' as const, onPress: reopen }] : []),
+        { label: 'Delete', icon: 'trash', destructive: true, onPress: removeFinished },
+      ],
+    });
   };
 
   // ---- Finish / discard / undo ----
@@ -263,7 +260,6 @@ export default function WorkoutScreen() {
         const result = await finishWorkout(current, mode);
         workoutRef.current = result.workout;
         setWorkout(result.workout);
-        setSummary(result.summary);
         setGslp(await loadGslpState());
         scrollRef.current?.scrollTo({ y: 0, animated: false });
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -318,7 +314,6 @@ export default function WorkoutScreen() {
           }
           workoutRef.current = reopened;
           setWorkout(reopened);
-          setSummary(undefined);
           setGslp(await loadGslpState());
         },
       },
@@ -377,10 +372,10 @@ export default function WorkoutScreen() {
 
   const finished = !!workout.finishedAt;
   const stats = workoutStats(workout, new Date(now));
-  const progression = finished && isGslp(workout) ? gslpProgressionFor(gslp, workout.id) : undefined;
-  const lines = summary ?? progression?.summary;
   const optionalSlots = !finished && isGslp(workout) ? gslpOptionalSlots(gslp, workout) : [];
   const current = finished ? undefined : currentSet(workout);
+  const blocks = exerciseBlocks(workout.exercises);
+  const nextUp = finished ? undefined : nextUpFor(workout);
   const totalSets = workout.exercises.reduce((sum, entry) => sum + entry.sets.length, 0);
   const doneSets = workout.exercises.reduce((sum, entry) => sum + entry.sets.filter((set) => set.done).length, 0);
   const eyebrow =
@@ -389,26 +384,65 @@ export default function WorkoutScreen() {
           const { week, day } = sessionPosition(workout.source.sessionIndex);
           return `${workout.source.program.toUpperCase()} · Week ${week} · Day ${day}`;
         })()
-      : new Date(workout.startedAt).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+      : workout.source.kind === 'import'
+        ? 'From Strong'
+        : finished
+          ? 'Workout' // the nav already shows the date
+          : new Date(workout.startedAt).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  // Replacing an accessory: its slot's pool comes first (and the current pick is checked).
+  const replacing = picker?.kind === 'replace' ? workout.exercises.find((entry) => entry.id === picker.entryId) : undefined;
+  const slotChoices = replacing && isGslp(workout) ? gslpSlotChoices(replacing.slot) : undefined;
+  const pickerSlot = replacing
+    ? {
+        currentId: replacing.exerciseId,
+        slotIds: slotChoices?.exerciseIds,
+        subtitle: [splitExerciseName(getExercise(replacing.exerciseId).name).title, slotChoices ? `${slotChoices.label.toLowerCase()} slot` : undefined]
+          .filter(Boolean)
+          .join(' · '),
+      }
+    : {};
   const showNotesField = (!finished || editing) && (notesOpen || !!workout.notes);
 
   return (
     <>
       <Stack.Screen
         options={{
-          title: finished ? (editing ? 'Edit Workout' : 'Summary') : formatDuration(stats.durationSec),
+          title: finished
+            ? new Date(workout.startedAt).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+            : formatDuration(stats.durationSec),
           // Plain text, no background: iOS 26 already draws a glass capsule around header items,
           // and a filled pill inside it shows as a double ring.
           headerTitleStyle: finished ? undefined : { fontFamily: Fonts.num },
           headerRight:
             finished && !editing
-              ? undefined
+              ? () => (
+                  <View style={styles.headerActions}>
+                    <View ref={headerMenuRef} collapsable={false}>
+                      <Pressable
+                        onPress={() => measureAnchor(headerMenuRef.current, openSummaryMenu)}
+                        hitSlop={8}
+                        style={styles.headerButton}
+                        accessibilityLabel="Workout options">
+                        <IconSymbol name="ellipsis" size={20} color={C.t1} />
+                      </Pressable>
+                    </View>
+                    <Pressable onPress={() => router.back()} hitSlop={8} style={styles.headerButton}>
+                      <ThemedText style={styles.headerButtonText}>Done</ThemedText>
+                    </Pressable>
+                  </View>
+                )
               : () => (
                   <View style={styles.headerActions}>
                     {!finished ? (
-                      <Pressable onPress={openWorkoutMenu} hitSlop={8} style={styles.headerButton} accessibilityLabel="Workout options">
-                        <IconSymbol name="ellipsis" size={20} color={C.t1} />
-                      </Pressable>
+                      <View ref={headerMenuRef} collapsable={false}>
+                        <Pressable
+                          onPress={() => measureAnchor(headerMenuRef.current, openWorkoutMenu)}
+                          hitSlop={8}
+                          style={styles.headerButton}
+                          accessibilityLabel="Workout options">
+                          <IconSymbol name="ellipsis" size={20} color={C.t1} />
+                        </Pressable>
+                      </View>
                     ) : null}
                     <Pressable onPress={editing ? stopEditing : finish} disabled={busy} hitSlop={8} style={styles.headerButton}>
                       <ThemedText style={styles.headerButtonText}>{editing ? 'Save' : 'Finish'}</ThemedText>
@@ -436,11 +470,7 @@ export default function WorkoutScreen() {
                 </ThemedText>
               ) : null}
             </View>
-            {finished ? (
-              <ThemedText type="subhead">
-                {new Date(workout.startedAt).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
-              </ThemedText>
-            ) : (
+            {finished ? null : (
               <View style={styles.progress}>
                 {workout.exercises.map((entry) => {
                   const done = entry.sets.filter((set) => set.done).length;
@@ -470,69 +500,25 @@ export default function WorkoutScreen() {
             ) : null}
           </View>
 
-          {finished ? (
-            <Card style={styles.summary}>
-              <View style={styles.statsRow}>
-                <Stat label="Time" value={formatMinutes(stats.durationSec)} />
-                <Stat label="Sets" value={String(stats.sets)} />
-                <Stat label="Volume" value={`${Math.round(stats.volume).toLocaleString()} lb`} />
-              </View>
-              {lines?.map((line) => (
-                <View key={line.label} style={styles.lineRow}>
-                  <View style={styles.flex}>
-                    <ThemedText>{line.label}</ThemedText>
-                    <ThemedText style={styles.small}>{line.note}</ThemedText>
-                  </View>
-                  <ThemedText style={line.tone === 'down' ? styles.down : line.tone === 'up' ? styles.up : styles.muted}>
-                    {line.before} → {line.after}
-                  </ThemedText>
-                </View>
-              ))}
-              {!editing ? (
-                <>
-                  <Button title="Done" onPress={() => router.back()} />
-                  <View style={styles.summaryActions}>
-                    <Button title="Edit" variant="secondary" style={styles.flex} onPress={startEditing} />
-                    {progression?.isLatest ? (
-                      <Button title="Undo & reopen" variant="secondary" style={styles.flex} onPress={reopen} />
-                    ) : null}
-                  </View>
-                  <Pressable onPress={removeFinished} style={styles.discard}>
-                    <ThemedText style={styles.discardText}>Delete Workout</ThemedText>
-                  </Pressable>
-                </>
-              ) : (
-                <ThemedText style={styles.small}>
-                  Editing the log only. GSLP weights don&apos;t change; use Undo &amp; reopen on the latest session for that.
-                </ThemedText>
-              )}
-            </Card>
+          {finished && !editing ? (
+            <WorkoutSummary workout={workout} log={gslp.history.find((log) => log.workoutId === workout.id)} />
+          ) : null}
+          {editing ? (
+            <View style={styles.editBanner}>
+              <ThemedText style={styles.editBannerText}>Editing the log · GSLP weights stay as they are</ThemedText>
+            </View>
           ) : null}
 
           {finished && !editing
-            ? workout.exercises.map((entry) => {
-                const exercise = getExercise(entry.exerciseId);
-                return (
-                  <Card key={entry.id} style={styles.finishedCard}>
-                    <ThemedText type="defaultSemiBold">{exercise.name}</ThemedText>
-                    {entry.sets.map((set) => (
-                      <ThemedText key={set.id} style={set.type === 'warmup' ? styles.muted : undefined}>
-                        {set.type === 'warmup' ? 'W ' : ''}
-                        {formatSet(set, exercise.tracking)}
-                      </ThemedText>
-                    ))}
-                  </Card>
-                );
-              })
-            : workout.exercises.map((entry) => {
-                const slotLabel = isGslp(workout) ? gslpSlotLabel(entry.slot) : undefined;
-                return (
+            ? null
+            : blocks.map((block) => {
+                const cards = block.entries.map((entry) => (
                   <ExerciseCard
                     key={entry.id}
                     entry={entry}
                     previous={previous[entry.exerciseId] ?? []}
                     mainLift={!!entry.slot && entry.slot in gslpLifts}
-                    slotLabel={slotLabel}
+                    slotLabel={isGslp(workout) ? gslpSlotLabel(entry.slot) : undefined}
                     currentSetId={current?.entryId === entry.id ? current.setId : undefined}
                     choices={isGslp(workout) ? gslpSlotChoices(entry.slot)?.exerciseIds : undefined}
                     onSetChange={(setId, patch: SetPatch) => {
@@ -543,9 +529,18 @@ export default function WorkoutScreen() {
                     onSetDelete={(setId) => apply((w) => removeSet(w, entry.id, setId))}
                     onAddSet={() => apply((w) => addSet(w, entry.id))}
                     onChoose={(exerciseId) => swapTo(entry.id, exerciseId)}
-                    onMenu={() => openMenu(entry.id)}
-                    onShowHistory={() => setHistoryId(entry.exerciseId)}
+                    onMenu={(anchor) => openMenu(entry.id, anchor)}
+                    collapsible={!finished}
+                    grouped={!!block.letter}
+                    tag={supersetTag(blocks, entry.id)}
                   />
+                ));
+                return block.letter ? (
+                  <SupersetGroup key={block.key} members={block.entries}>
+                    {cards}
+                  </SupersetGroup>
+                ) : (
+                  cards[0]
                 );
               })}
 
@@ -571,11 +566,12 @@ export default function WorkoutScreen() {
           ) : null}
         </ScrollView>
       </KeyboardAvoidingView>
-      {!finished ? <RestBar bottomInset={insets.bottom} /> : null}
+      {!finished ? <RestBar bottomInset={insets.bottom} next={nextUp} /> : null}
 
       <ExercisePicker
         visible={picker !== null}
-        title={picker?.kind === 'replace' ? 'Replace Exercise' : 'Add Exercise'}
+        title={picker?.kind === 'replace' ? 'Replace' : 'Add exercise'}
+        {...pickerSlot}
         onClose={() => setPicker(null)}
         onPick={(exerciseId) => {
           const mode = picker;
@@ -585,18 +581,8 @@ export default function WorkoutScreen() {
         }}
       />
       <ExerciseHistorySheet exerciseId={historyId} onClose={() => setHistoryId(null)} />
+      <ActionMenu menu={menu} onClose={() => setMenu(null)} />
     </>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.stat}>
-      <ThemedText type="label" style={styles.muted}>
-        {label}
-      </ThemedText>
-      <ThemedText type="defaultSemiBold">{value}</ThemedText>
-    </View>
   );
 }
 
@@ -611,18 +597,9 @@ const styles = StyleSheet.create({
   progressSegment: { flex: 1, height: 4, borderRadius: 2, backgroundColor: C.s3, overflow: 'hidden' },
   progressFill: { height: 4, backgroundColor: C.accent },
   muted: { color: Colors.dark.textMuted },
-  small: { color: Colors.dark.textMuted, fontSize: 12 },
-  up: { color: Colors.dark.tint },
-  down: { color: Colors.dark.error },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   headerButton: { paddingHorizontal: 8, minHeight: 32, justifyContent: 'center' },
   headerButtonText: { color: C.accent, fontSize: 17, fontWeight: '600' },
-  summary: { gap: 14 },
-  statsRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  stat: { gap: 4 },
-  lineRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  finishedCard: { gap: 4 },
-  summaryActions: { flexDirection: 'row', gap: 12 },
   notes: {
     marginTop: 4,
     paddingVertical: 6,
@@ -632,6 +609,8 @@ const styles = StyleSheet.create({
   },
   notesText: { marginTop: 4, fontSize: 15, color: C.t2 },
   footer: { gap: 12, marginTop: 4 },
+  editBanner: { backgroundColor: C.amrapBg, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14 },
+  editBannerText: { color: C.amrap, fontSize: 14, fontWeight: '600' },
   discard: { alignItems: 'center', paddingVertical: 12 },
   discardText: { color: C.destructive, fontSize: 16 },
 });

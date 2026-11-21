@@ -6,11 +6,13 @@ import React, { useState } from 'react';
 import { C, Radius, numStyle } from '@/constants/theme';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { ThemedText } from '@/components/themed-text';
 import { type TrackingType, formatLoad } from '@/lib/exercises';
 import type { WorkoutSet } from '@/lib/workout';
 import { formatPlatesCompact } from '@/lib/plates';
-import { setHasValues } from '@/lib/workout-edit';
+import { amrapBadge, setHasValues } from '@/lib/workout-edit';
+import { Pill } from '@/components/ui/primitives';
 
 export type SetPatch = Partial<Pick<WorkoutSet, 'weight' | 'reps' | 'durationSec' | 'done' | 'completedAt'>>;
 
@@ -118,11 +120,18 @@ type SetRowProps = {
   current?: boolean;
   /** Show plates per side in the weight column instead of pounds. */
   plates?: boolean;
+  /** Hairline above the row (every row but the first). */
+  separator?: boolean;
   onChange: (patch: SetPatch) => void;
   onDelete: () => void;
 };
 
-export function SetRow({ label, set, previous, tracking, current, plates, onChange, onDelete }: SetRowProps) {
+export function SetRow({ label, set, previous, tracking, current, plates, separator, onChange, onDelete }: SetRowProps) {
+  // Subtle "got it": the check grows a touch and settles when a set is completed.
+  const reduceMotion = useReducedMotion();
+  const checkScale = useSharedValue(1);
+  const checkAnimated = useAnimatedStyle(() => ({ transform: [{ scale: checkScale.value }] }));
+
   const hasWeight = weightHeader(tracking) !== null;
   const isDuration = tracking === 'duration';
   const warmup = set.type === 'warmup';
@@ -147,7 +156,13 @@ export function SetRow({ label, set, previous, tracking, current, plates, onChan
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // AMRAP that met its target: a success buzz instead of the plain tap. Below target stays quiet.
+    const hitAmrap = amrap && (filled.reps ?? 0) >= (set.target?.reps ?? Infinity);
+    if (hitAmrap) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    else void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (!reduceMotion) {
+      checkScale.value = withSequence(withTiming(1.14, { duration: 90 }), withSpring(1, { damping: 11, stiffness: 320 }));
+    }
     onChange({
       weight: filled.weight,
       reps: filled.reps,
@@ -160,6 +175,7 @@ export function SetRow({ label, set, previous, tracking, current, plates, onChan
   const weightDisplay = plates ? formatPlatesCompact(set.weight) : formatLoad(set.weight, tracking);
   // AMRAP: show the target as "5+" in amber until it's logged.
   const amrapHint = amrap && !set.done && set.reps !== undefined && set.reps === set.target?.reps;
+  const badge = amrapBadge(set, tracking);
 
   return (
     <ReanimatedSwipeable
@@ -173,6 +189,7 @@ export function SetRow({ label, set, previous, tracking, current, plates, onChan
       )}>
       {/* Opaque base so the swipe action never shows through the tinted states. */}
       <View style={styles.base}>
+        {separator ? <View style={styles.separator} /> : null}
         <View
           style={[
             styles.row,
@@ -237,7 +254,7 @@ export function SetRow({ label, set, previous, tracking, current, plates, onChan
               onCommit={(reps) => onChange({ reps })}
             />
           )}
-          <View style={styles.checkCell}>
+          <Animated.View style={[styles.checkCell, checkAnimated]}>
             <Pressable
               onPress={toggleDone}
               hitSlop={4}
@@ -257,8 +274,13 @@ export function SetRow({ label, set, previous, tracking, current, plates, onChan
                 color={set.done ? C.onAccent : current ? C.accent : C.t3}
               />
             </Pressable>
-          </View>
+          </Animated.View>
         </View>
+        {badge ? (
+          <View style={[styles.badgeLine, styles.rowDone]}>
+            <Pill label={badge.label} tone={badge.hit ? 'accent' : 'neutral'} num />
+          </View>
+        ) : null}
       </View>
     </ReanimatedSwipeable>
   );
@@ -270,6 +292,15 @@ export const ROW_PADDING = 10;
 
 const styles = StyleSheet.create({
   base: { backgroundColor: C.s1 },
+  separator: {
+    position: 'absolute',
+    top: 0,
+    left: ROW_PADDING + SET_COLUMNS.label,
+    right: ROW_PADDING,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(255,255,255,0.09)',
+    zIndex: 1,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -279,6 +310,7 @@ const styles = StyleSheet.create({
   rowWarmup: { height: 44 },
   rowCurrent: { backgroundColor: C.s2 },
   rowDone: { backgroundColor: C.accentBg },
+  badgeLine: { alignItems: 'flex-end', paddingHorizontal: ROW_PADDING + 6, paddingBottom: 10, marginTop: -2 },
   labelCell: { width: SET_COLUMNS.label, alignItems: 'flex-start' },
   badge: {
     minWidth: 28,

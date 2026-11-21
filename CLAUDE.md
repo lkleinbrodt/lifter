@@ -7,7 +7,7 @@ Lifter is a React Native/Expo mobile fitness app that supports two lifting progr
 - **5/3/1** (modified): calculates training weights from training maxes and tracks workout completion.
 - **GSLP** (Greyskull LP): alternating A/B sessions with per-lift linear progression driven by logged AMRAP reps.
 
-The app opens to a program picker (`app/index.tsx`) and reopens straight into the last-chosen program. A chip in each screen header switches back to the picker. Both programs share the accessory exercise library. The app runs on iOS, Android, and Web.
+The app opens to a program picker (`app/index.tsx`) and reopens straight into the last-chosen program. On GSLP, the Settings tab has a Program row that returns to the picker; 5/3/1 keeps its header chip. Both programs share the accessory exercise library. The app runs on iOS, Android, and Web.
 
 **Stack**: Expo SDK 54, React 19, React Native 0.81, TypeScript 5.9, Expo Router 6
 
@@ -65,7 +65,7 @@ app/                      # Screens (Expo Router file-based routing)
   index.tsx               # Program picker; auto-opens last program on cold start
   archetype/[name].tsx    # Accessory exercise list by archetype (shared)
   import-strong.tsx       # One-off Strong CSV import + GSLP weight check (opened from Settings)
-  settings.tsx            # Dev page (gear in every tab header): check for update + restart, diagnostics, tools
+  settings.tsx            # /settings: the dev sections on their own page (5/3/1 gear, deep links)
   workout/[id].tsx        # Active workout (Strong-style set table) and finished-workout summary
   531/                    # 5/3/1 side
     _layout.tsx           # Stack: (tabs) + workout detail
@@ -73,14 +73,19 @@ app/                      # Screens (Expo Router file-based routing)
     workout/[slug].tsx    # Workout detail, e.g. /531/workout/1-squat
   gslp/                   # GSLP side
     _layout.tsx           # Stack: (tabs)
-    (tabs)/               # Tabs: Weights, Workouts (start screen: next up / other / empty), History, Exercises
+    (tabs)/               # Tabs: Workout (hero / live card + last session), History, Exercises, Settings (weights, program, dev); index redirects to Workout
 components/               # Reusable React components
   ui/                     # Base primitives (Button, Card, Input, icons, collapsible)
-  workout/                # Workout screen pieces: exercise card, set row, picker, history sheet, rest bar, active-workout bar
-  workout-history.tsx     # History tab: every logged workout, newest first
-  program-tabs.tsx        # Shared tab navigator used by both programs (remembers last tab)
-  program-header.tsx      # Screen title + program-switch chip
-  exercise-library.tsx    # Exercise library screen, mounted in both programs' tabs
+  ui/action-menu.tsx      # Anchored ⋯ menu (replaces the system action sheet)
+  ui/primitives.tsx       # Pill, Chip, Stat, ListRow, SectionHeader
+  workout/                # Workout screen pieces: exercise card, set row, plate diagram, superset group, picker,
+                          #   history sheet, rest bar, minibar (active-workout-bar), summary, next-up helper
+  workout-history.tsx     # History tab: compact cards grouped by week
+  gslp-weights.tsx        # GSLP weights section of the Settings tab
+  dev-settings.tsx        # Dev sections (update, diagnostics, tools), on the Settings tab and /settings
+  program-tabs.tsx        # Shared tab navigator + restyled tab bar; opens on its initial tab (no last-tab restore)
+  program-header.tsx      # Large title (5/3/1 also gets the program chip + gear)
+  exercise-library.tsx    # Exercises tab: catalog list with pattern filter; rows open the history sheet
   themed-text.tsx         # Typography with variants (title, subtitle, label, display, etc.)
   themed-view.tsx         # Themed container
   safe-area.tsx           # Safe area wrapper
@@ -101,6 +106,7 @@ lib/                      # Core business logic
   strong-import.ts        # Strong CSV export → Workouts (pure)
   workout-edit.ts         # Pure edits on a Workout (sets, swap, finalize, stats, Previous-column matching)
   workout-actions.ts      # Workout lifecycle against storage: start, finish (+ progression), reopen, discard, delete
+  workout-names.ts        # Display names from templates ("B · Horizontal + Deadlift"), imports matched by main lifts
   session-store.ts        # App-wide active workout + rest timer (useSession), local rest notifications
 hooks/                    # Custom React hooks (color scheme, theme color)
 constants/
@@ -121,7 +127,6 @@ Expo Router with file-based routing. Each program lives under its own directory 
 ### Data Model
 Shared AsyncStorage keys:
 - `@active_program` — `'531' | 'gslp'`, the program the app reopens to
-- `@last_tab` / `@gslp_last_tab` — last viewed tab per program
 
 5/3/1 keys:
 - `@user_maxes` — `{ squat: number, bench: number, deadlift: number, weightedPullupWeight: number }`
@@ -165,10 +170,11 @@ type WorkoutSet = { percent: number; reps: string; amrap?: boolean };
 
 ### Styling
 - React Native `StyleSheet.create()` — no CSS-in-JS libraries
-- All colors from `Colors.dark.*` in `constants/theme.ts` (dark-only theme, "Industrial Zen" aesthetic)
-- Monospace font: Menlo (iOS) / monospace (Android)
-- Layout constants: `Layout.radius` (16), `Layout.spacing` (16)
-- Shadows via `Shadows.card` and `Shadows.button`
+- Tokens in `constants/theme.ts` (spec: `docs/ui-overhaul-proposal.md`): colors `C.*`, `Type.*`, `Space`, `Radius`, `Shadows.float`. `Colors.dark.*` remain as aliases for older screens.
+- Text is SF Pro, numbers are Menlo with tabular figures (`ThemedText num` / `numStyle`). `USE_MENLO_TEXT` flips all text to Menlo.
+- Dark-only: `Appearance.setColorScheme('dark')` at startup so system alerts match.
+- Cards are flat (no shadows); only floating things (minibar, menus, sheets) use `Shadows.float`.
+- No svg in the build: charts, sparklines, the rest ring and the plate diagram are drawn with Views.
 
 ### Components
 - Function components with hooks (no class components)

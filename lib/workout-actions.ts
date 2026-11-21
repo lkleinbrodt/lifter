@@ -3,14 +3,14 @@
 
 import { deleteWorkout, exerciseHistory, getActiveWorkout, getWorkout, saveWorkout } from './db';
 import { gslpProgram } from './gslp-program';
-import { undoLastSession } from './gslp';
+import { type GslpLiftKey, gslpLiftOrder, gslpLifts, undoLastSession } from './gslp';
 import { loadGslpState, saveGslpState } from './gslp-storage';
 import type { ProgressionLine } from './program-module';
-import { type Workout, type WorkoutSet, newId } from './workout';
+import { type Workout, type WorkoutSet, isWorkingSet, newId } from './workout';
 import { finalizeWorkout } from './workout-edit';
-import { setActiveWorkout } from './session-store';
+import { setActiveWorkout, summarizeActive } from './session-store';
 
-const summaryOf = (w: Workout) => ({ id: w.id, name: w.name, startedAt: w.startedAt });
+const summaryOf = summarizeActive;
 
 /** Sets from the latest finished session of an exercise (before `before`, if given). */
 export async function lastSetsFor(exerciseId: string, before?: string): Promise<WorkoutSet[]> {
@@ -93,4 +93,28 @@ export async function deleteFinishedWorkout(workoutId: string): Promise<{ undidP
   if (undid) await saveGslpState(undoLastSession(state));
   await deleteWorkout(workoutId);
   return { undidProgression: undid };
+}
+
+export type TopSet = { weight: number; reps?: number };
+
+/**
+ * Each GSLP lift's top set per session (the AMRAP set, else the last working set), oldest
+ * first, from the workout log (Strong imports included). Feeds "last" lines, sparklines and jumps.
+ */
+export async function gslpLiftHistory(limit = 8): Promise<Partial<Record<GslpLiftKey, TopSet[]>>> {
+  const rows = await Promise.all(
+    gslpLiftOrder.map(async (key) => {
+      const history = await exerciseHistory(gslpLifts[key].exerciseId, { limit });
+      const tops = history
+        .map((session) => {
+          const working = session.sets.filter((set) => isWorkingSet(set) && set.weight !== undefined);
+          return working.find((set) => set.type === 'amrap') ?? working.at(-1);
+        })
+        .filter((set) => set !== undefined)
+        .map((set) => ({ weight: set.weight ?? 0, reps: set.reps }))
+        .reverse();
+      return [key, tops] as const;
+    }),
+  );
+  return Object.fromEntries(rows);
 }
