@@ -33,12 +33,11 @@ export function RestBar({ bottomInset, next }: { bottomInset: number; next?: Nex
   const reduceMotion = useReducedMotion();
   const pulse = useSharedValue(0);
 
-  // In-app nudge when the countdown reaches zero (the notification covers the locked phone):
-  // the fill pulses twice. The store clears the timer shortly after.
+  // Visual nudge when the countdown reaches zero: the fill pulses twice. The sound and haptic
+  // come from the rest notification (lib/session-store.ts), on any screen. The store clears the timer shortly after.
   useEffect(() => {
     if (!rest || left !== 0 || fired.current === rest.endsAt) return;
     fired.current = rest.endsAt;
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     if (!reduceMotion) pulse.value = withRepeat(withSequence(withTiming(1, { duration: 180 }), withTiming(0, { duration: 240 })), 2);
   }, [left, rest, pulse, reduceMotion]);
 

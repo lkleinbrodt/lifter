@@ -1,12 +1,15 @@
 // App-wide state for the workout in progress: which workout is active (for the minimized
 // bar) and the rest timer. Screens read it with useSession(); writes go through the
-// functions below. The rest timer is a reminder: a local notification dings when it ends,
-// even with the phone locked.
+// functions below. The rest timer is a reminder: it ticks each minute and says "Rest is over"
+// at the end, as local notifications with bundled sounds, locked or not.
 
+import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getActiveWorkout } from './db';
+import { formatDuration } from './workout-edit';
+import { loadRestVoice, restOverSoundFile } from './rest-sound';
 import type { Workout } from './workout';
 import { workoutDisplayName } from './workout-names';
 import { useSyncExternalStore } from 'react';
@@ -61,16 +64,15 @@ export async function refreshActiveWorkout() {
 
 // ---- Rest timer ----
 
+// This handler only runs while Lifter is in the foreground: rest notifications play their
+// sound but show no banner (the rest bar is on screen), and the end of rest buzzes.
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: false,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
+  handleNotification: async (notification) => {
+    if (notification.request.content.data?.end) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    return { shouldShowBanner: false, shouldShowList: false, shouldPlaySound: true, shouldSetBadge: false };
+  },
 });
 
-let notificationId: string | null = null;
 let permissionAsked = false;
 
 async function ensurePermission() {
@@ -80,26 +82,68 @@ async function ensurePermission() {
   if (!current.granted && current.canAskAgain) await Notifications.requestPermissionsAsync();
 }
 
-async function cancelNotification() {
-  if (notificationId) {
-    const id = notificationId;
-    notificationId = null;
-    await Notifications.cancelScheduledNotificationAsync(id).catch(() => undefined);
+// Seconds of rest between ticks, and no tick this close to the end (the "rest over" sound is next).
+const TICK_EVERY_SEC = 60;
+const TICK_END_GAP_MS = 10_000;
+// Bundled as rest-tick-1.wav … rest-tick-5.wav; minute 6+ reuses the 5-ping file.
+const MAX_PINGS = 5;
+
+/** Times (ms) of the minute ticks: each full minute since the rest started, anchored to the start so ±15s doesn't move them. */
+function tickTimes(rest: RestTimer) {
+  const start = rest.endsAt - rest.durationSec * 1000;
+  const times: number[] = [];
+  for (let at = start + TICK_EVERY_SEC * 1000; at < rest.endsAt - TICK_END_GAP_MS; at += TICK_EVERY_SEC * 1000) times.push(at);
+  return times;
+}
+
+// Rest notifications carry data.kind = 'rest', so they can be found again after a relaunch.
+const isRest = (request: Notifications.NotificationRequest) => request.content.data?.kind === 'rest';
+
+async function cancelNotifications() {
+  const [scheduled, presented] = await Promise.all([
+    Notifications.getAllScheduledNotificationsAsync().catch(() => []),
+    Notifications.getPresentedNotificationsAsync().catch(() => []),
+  ]);
+  await Promise.all([
+    ...scheduled.filter(isRest).map((r) => Notifications.cancelScheduledNotificationAsync(r.identifier).catch(() => undefined)),
+    ...presented
+      .filter((n) => isRest(n.request))
+      .map((n) => Notifications.dismissNotificationAsync(n.request.identifier).catch(() => undefined)),
+  ]);
+}
+
+async function scheduleAt(at: number, content: Notifications.NotificationContentInput, end = false) {
+  const seconds = Math.round((at - Date.now()) / 1000);
+  if (seconds < 1) return;
+  await Notifications.scheduleNotificationAsync({
+    content: { ...content, data: { kind: 'rest', end } },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds, repeats: false },
+  });
+}
+
+// Glass pings at each full minute (one ping per minute elapsed, up to MAX_PINGS) and "Rest is over" at the end, as standard local notifications with sounds
+// bundled into the app (the expo-notifications `sounds` plugin option). Locked or open, the same
+// notifications make the sound; like any notification, they're muted by the silent switch.
+async function scheduleNotifications(rest: RestTimer | null) {
+  await cancelNotifications();
+  if (!rest) return;
+  try {
+    for (const [i, at] of tickTimes(rest).entries()) {
+      const pings = Math.min(i + 1, MAX_PINGS);
+      const left = formatDuration(Math.round((rest.endsAt - at) / 1000));
+      const elapsed = formatDuration(Math.round((at - (rest.endsAt - rest.durationSec * 1000)) / 1000));
+      await scheduleAt(at, { title: `Rest ${elapsed}`, body: `${left} left`, sound: `rest-tick-${pings}.wav` });
+    }
+    await scheduleAt(rest.endsAt, { title: 'Rest over', body: 'Time for the next set.', sound: restOverSoundFile() }, true);
+  } catch {
+    // permission denied: the in-app countdown and sounds still work
   }
 }
 
-async function scheduleFor(rest: RestTimer) {
-  await cancelNotification();
-  const seconds = Math.round((rest.endsAt - Date.now()) / 1000);
-  if (seconds < 1) return;
-  try {
-    notificationId = await Notifications.scheduleNotificationAsync({
-      content: { title: 'Rest over', body: 'Time for the next set.', sound: 'default' },
-      trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds, repeats: false },
-    });
-  } catch {
-    notificationId = null; // permission denied: the in-app countdown still works
-  }
+// Notification calls are async; run them one at a time so quick ±15 taps can't leave duplicates.
+let notificationQueue: Promise<void> = Promise.resolve();
+function queueNotifications(rest: RestTimer | null) {
+  notificationQueue = notificationQueue.then(() => scheduleNotifications(rest)).catch(() => undefined);
 }
 
 // Clears the timer a moment after it ends, wherever the user is in the app.
@@ -121,7 +165,7 @@ function applyRest(rest: RestTimer | null) {
   void (rest ? AsyncStorage.setItem(REST_KEY, JSON.stringify(rest)) : AsyncStorage.removeItem(REST_KEY)).catch(
     () => undefined,
   );
-  void (rest ? scheduleFor(rest) : cancelNotification());
+  queueNotifications(rest);
 }
 
 export async function startRest(durationSec: number) {
@@ -145,8 +189,14 @@ export async function skipRest() {
   applyRest(null);
 }
 
+/** Re-schedules the running rest's notifications, e.g. after the voice setting changes. */
+export function refreshRestNotifications() {
+  queueNotifications(snapshot.rest);
+}
+
 /** Restores a rest timer that was running when the app was killed. */
 export async function restoreRest() {
+  await loadRestVoice();
   try {
     const raw = await AsyncStorage.getItem(REST_KEY);
     const rest = raw ? (JSON.parse(raw) as RestTimer) : null;

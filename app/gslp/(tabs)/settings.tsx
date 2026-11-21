@@ -12,6 +12,7 @@ import { DevSettings } from '@/components/dev-settings';
 import { GslpWeightsSection, type LiftSessions } from '@/components/gslp-weights';
 import { ListRow } from '@/components/ui/primitives';
 import { ProgramHeader } from '@/components/program-header';
+import { RestVoiceRow } from '@/components/rest-voice-row';
 import { SafeAreaContainer } from '@/components/safe-area';
 import { ThemedText } from '@/components/themed-text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -55,6 +56,7 @@ export default function GslpSettingsScreen() {
               onPress={() => router.replace('/')}
             />
           </View>
+          <RestVoiceRow />
           <DevSettings />
         </ScrollView>
       </KeyboardAvoidingView>
