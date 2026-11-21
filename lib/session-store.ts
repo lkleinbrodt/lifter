@@ -1,12 +1,13 @@
 // App-wide state for the workout in progress: which workout is active (for the minimized
 // bar) and the rest timer. Screens read it with useSession(); writes go through the
-// functions below. The rest timer is a reminder: a local notification dings when it ends,
-// even with the phone locked.
+// functions below. The rest timer is a reminder: a chime plays when it ends while the app is
+// open, and a local notification dings when the phone is locked.
 
 import * as Notifications from 'expo-notifications';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getActiveWorkout } from './db';
+import { playRestDone, preloadRestSound } from './rest-sound';
 import type { Workout } from './workout';
 import { workoutDisplayName } from './workout-names';
 import { useSyncExternalStore } from 'react';
@@ -61,11 +62,13 @@ export async function refreshActiveWorkout() {
 
 // ---- Rest timer ----
 
+// This handler only runs while Lifter is in the foreground, where the in-app chime
+// (lib/rest-sound.ts) and the rest bar already cover it, so the notification stays quiet.
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowBanner: true,
+    shouldShowBanner: false,
     shouldShowList: false,
-    shouldPlaySound: true,
+    shouldPlaySound: false,
     shouldSetBadge: false,
   }),
 });
@@ -105,11 +108,20 @@ async function scheduleFor(rest: RestTimer) {
 // Clears the timer a moment after it ends, wherever the user is in the app.
 const EXPIRED_GRACE_MS = 1500;
 let expireTimer: ReturnType<typeof setTimeout> | null = null;
+let chimeTimer: ReturnType<typeof setTimeout> | null = null;
+// A chime that would land later than this (the JS thread was suspended in the background) is dropped.
+const CHIME_LATE_MS = 2000;
 
 function scheduleExpiry(rest: RestTimer | null) {
   if (expireTimer) clearTimeout(expireTimer);
+  if (chimeTimer) clearTimeout(chimeTimer);
   expireTimer = null;
+  chimeTimer = null;
   if (!rest) return;
+  preloadRestSound();
+  chimeTimer = setTimeout(() => {
+    if (snapshot.rest?.endsAt === rest.endsAt && Date.now() - rest.endsAt < CHIME_LATE_MS) playRestDone();
+  }, Math.max(0, rest.endsAt - Date.now()));
   expireTimer = setTimeout(() => {
     if (snapshot.rest?.endsAt === rest.endsAt) applyRest(null);
   }, Math.max(0, rest.endsAt - Date.now()) + EXPIRED_GRACE_MS);

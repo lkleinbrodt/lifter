@@ -230,6 +230,12 @@ Each phase is its own branch and PR.
   - Rest rule (`restsAfter` in `lib/workout-edit.ts`): checking a superset member starts no rest when the next set is a later member of the same round, so you go straight to the partner; the round's last member rests. Warm-ups, leftover sets and plain exercises always rest.
   - Not doing: reordering rows by round, creating supersets in the app (templates live in code), separate superset rest lengths.
 
+### Rest timer sound (1.2.0, needs a native build)
+- Notification sounds are muted by the silent switch, and in the foreground the notification was the only sound. Now a chime (`assets/sounds/rest-done.wav`, generated two-tone ding) plays through `expo-audio` when the timer ends while the app is open, on any screen: it plays in silent mode and mixes over music without pausing it (`lib/rest-sound.ts`).
+- The foreground notification is now silent and bannerless so it doesn't double the chime. Locked or backgrounded, the local notification still dings (and still obeys the silent switch; beating that would need a background audio session).
+- Settings → Tools has "Test rest chime".
+- `expo-audio` is a new native module, so `version` went to 1.2.0: run `npm run release:ios:full` on the Mac before any further OTA.
+
 ### Later
 - Port 5/3/1+ onto `ProgramModule`.
 - Analysis: charts, PRs and badges, e1RM, volume.
