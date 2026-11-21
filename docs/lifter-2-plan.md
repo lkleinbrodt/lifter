@@ -197,6 +197,17 @@ Each phase is its own branch and PR.
 
 ### Phase 3.5: Visual polish
 - The functional screens work but look rough. Do a dedicated design pass on the workout screen, start screen, history and summary: spacing, hierarchy, the set table, and the tone of the done/rest states.
+- **Approved spec: `docs/ui-overhaul-proposal.md`** (decisions, tokens, per-screen specs). The visual reference is the artifact linked there; where they differ, the spec wins. Not started yet.
+- Sub-phases, each its own branch and OTA update, with no native build:
+  - **3.5a** Foundation: tokens, fonts, primitives, dark `Appearance`.
+  - **3.5b** Workout ledger: the grid stays and every cell is editable, plus a current set, warm-ups that collapse, and a plate line with a plates toggle.
+  - **3.5c** Workout feedback: AMRAP ★/e1RM badge, exercise collapse, superset grouped card, rest bar with "Next".
+  - **3.5d** IA: tabs Workout · History · Exercises · Settings (Settings absorbs Weights and program switching), cold start on Workout, hero and "Last session" card.
+  - **3.5e** History (compact, week groups) and summary.
+  - **3.5f** Minibar and restyled JS tab bar.
+  - **3.5g** Picker, history sheet and catalog-backed Exercises tab.
+- After 3.5b, try the ledger on the phone mid-workout (SF Pro vs all-Menlo is a one-line flag) before continuing.
+- Scope is GSLP and the general app only. The 5/3/1 notes are parked at the bottom of the spec.
 
 ### Phase 4: Supersets
 - Group exercises in the UI. Logging alternates between the grouped exercises, and the rest timer starts after the last exercise in the group.
