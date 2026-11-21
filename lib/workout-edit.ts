@@ -292,3 +292,19 @@ export function supersetTag(blocks: ExerciseBlock[], entryId: string) {
   }
   return undefined;
 }
+
+/**
+ * Whether checking a set in `entryId` should start the rest timer, given the workout after the
+ * check. In a superset you go straight from one member to the next, so rest starts only after
+ * the round's last member: no rest when the next set is a later member of the same group.
+ * Warm-ups, leftover sets and plain exercises always rest.
+ */
+export function restsAfter(workout: Workout, entryId: string): boolean {
+  const entry = workout.exercises.find((item) => item.id === entryId);
+  const next = currentSet(workout);
+  if (!entry?.supersetGroup || !next || next.entryId === entryId) return true;
+  const members = workout.exercises.filter((item) => item.supersetGroup === entry.supersetGroup);
+  const from = members.findIndex((item) => item.id === entryId);
+  const to = members.findIndex((item) => item.id === next.entryId);
+  return !(to > from);
+}

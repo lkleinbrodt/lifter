@@ -21,6 +21,7 @@ import {
   addSet,
   currentSet,
   exerciseBlocks,
+  restsAfter,
   supersetTag,
   formatDuration,
   hasDoneSets,
@@ -525,7 +526,10 @@ export default function WorkoutScreen() {
                     onSetChange={(setId, patch: SetPatch) => {
                       apply((w) => updateSet(w, entry.id, setId, patch));
                       const set = entry.sets.find((item) => item.id === setId);
-                      if (!finished && patch.done && set) void startRest(restSecFor(entry.exerciseId)); // every set, warm-ups too; Skip is right there
+                      // Rest after every set (warm-ups too), except mid-round in a superset: go straight to the partner.
+                      if (!finished && patch.done && set && workoutRef.current && restsAfter(workoutRef.current, entry.id)) {
+                        void startRest(restSecFor(entry.exerciseId));
+                      }
                     }}
                     onSetDelete={(setId) => apply((w) => removeSet(w, entry.id, setId))}
                     onAddSet={() => apply((w) => addSet(w, entry.id))}

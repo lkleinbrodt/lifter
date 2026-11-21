@@ -2,7 +2,7 @@
 
 Turn Lifter from "tells me what to do" into the app I use *during* the workout, replacing Strong. Strong's common tracking features plus Lifter's program logic: the workout opens with today's prescribed numbers already filled in.
 
-Status (2026-11-20): Phases 1–2 are on `main` and on the phone (1.1.0 + OTA). Phase 3 code is done on `lifter-2/phase-3-comfort`.
+Status (2026-11-21): Phases 1–4 are on `main` and on the phone (1.1.0 + OTA).
 
 ## Principles
 
@@ -225,6 +225,10 @@ Each phase is its own branch and PR.
 
 ### Phase 4: Supersets
 - Group exercises in the UI. Logging alternates between the grouped exercises, and the rest timer starts after the last exercise in the group.
+- **Built (kept deliberately small):**
+  - The grouping UI and the alternating current set already came with 3.5 (`setOrder` / `currentSet`, `superset-group.tsx`).
+  - Rest rule (`restsAfter` in `lib/workout-edit.ts`): checking a superset member starts no rest when the next set is a later member of the same round, so you go straight to the partner; the round's last member rests. Warm-ups, leftover sets and plain exercises always rest.
+  - Not doing: reordering rows by round, creating supersets in the app (templates live in code), separate superset rest lengths.
 
 ### Later
 - Port 5/3/1+ onto `ProgramModule`.
