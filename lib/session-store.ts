@@ -85,6 +85,8 @@ async function ensurePermission() {
 // Seconds of rest between ticks, and no tick this close to the end (the "rest over" sound is next).
 const TICK_EVERY_SEC = 60;
 const TICK_END_GAP_MS = 10_000;
+// Bundled as rest-tick-1.wav … rest-tick-5.wav; minute 6+ reuses the 5-ping file.
+const MAX_PINGS = 5;
 
 /** Times (ms) of the minute ticks: each full minute since the rest started, anchored to the start so ±15s doesn't move them. */
 function tickTimes(rest: RestTimer) {
@@ -119,17 +121,18 @@ async function scheduleAt(at: number, content: Notifications.NotificationContent
   });
 }
 
-// A tick each minute and "Rest is over" at the end, as standard local notifications with sounds
+// Glass pings at each full minute (one ping per minute elapsed, up to MAX_PINGS) and "Rest is over" at the end, as standard local notifications with sounds
 // bundled into the app (the expo-notifications `sounds` plugin option). Locked or open, the same
 // notifications make the sound; like any notification, they're muted by the silent switch.
 async function scheduleNotifications(rest: RestTimer | null) {
   await cancelNotifications();
   if (!rest) return;
   try {
-    for (const at of tickTimes(rest)) {
+    for (const [i, at] of tickTimes(rest).entries()) {
+      const pings = Math.min(i + 1, MAX_PINGS);
       const left = formatDuration(Math.round((rest.endsAt - at) / 1000));
       const elapsed = formatDuration(Math.round((at - (rest.endsAt - rest.durationSec * 1000)) / 1000));
-      await scheduleAt(at, { title: `Rest ${elapsed}`, body: `${left} left`, sound: 'rest-tick.wav' });
+      await scheduleAt(at, { title: `Rest ${elapsed}`, body: `${left} left`, sound: `rest-tick-${pings}.wav` });
     }
     await scheduleAt(rest.endsAt, { title: 'Rest over', body: 'Time for the next set.', sound: restOverSoundFile() }, true);
   } catch {

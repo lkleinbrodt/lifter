@@ -50,7 +50,11 @@
         "expo-notifications",
         {
           "sounds": [
-            "./assets/sounds/rest-tick.wav",
+            "./assets/sounds/rest-tick-1.wav",
+            "./assets/sounds/rest-tick-2.wav",
+            "./assets/sounds/rest-tick-3.wav",
+            "./assets/sounds/rest-tick-4.wav",
+            "./assets/sounds/rest-tick-5.wav",
             "./assets/sounds/rest-over-jarvis.wav",
             "./assets/sounds/rest-over-elle.wav"
           ]

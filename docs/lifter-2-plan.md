@@ -231,10 +231,10 @@ Each phase is its own branch and PR.
   - Not doing: reordering rows by round, creating supersets in the app (templates live in code), separate superset rest lengths.
 
 ### Rest timer sounds (1.2.0, needs a native build)
-- A tick at each full minute of rest (anchored to the start, so ±15s doesn't move them; none in the last 10s), then a ding-ding and a voice saying "Rest is over". Jarvis (default) and Elle are both bundled (`rest-over-jarvis.wav` / `rest-over-elle.wav`, generated once with Threepio's `/v1/tts`; nothing calls Threepio at runtime). Settings → Rest voice picks one (`@rest_voice`) and previews it; changing it mid-rest reschedules the notification.
+- Glass pings at each full minute of rest, one per minute elapsed (`rest-tick-1.wav` … `rest-tick-5.wav`, capped at 5), anchored to the start so ±15s doesn't move them, none in the last 10s. Then a ding-ding and a voice saying "Rest is over". Jarvis (default) and Elle are both bundled (`rest-over-jarvis.wav` / `rest-over-elle.wav`, generated once with Threepio's `/v1/tts`; nothing calls Threepio at runtime). Settings → Rest voice picks one (`@rest_voice`) and previews it; changing it mid-rest reschedules the notification.
 - Standard local notifications only, like Strong: the sounds are bundled with the `expo-notifications` `sounds` option, and the same notifications play them locked or open (in the foreground: sound, no banner, a haptic at the end). The silent switch mutes them, which is fine. An `expo-audio` version that played through silent mode was tried and dropped as unneeded.
 - Rest notifications carry `data.kind = 'rest'`; every reschedule cancels pending ones and dismisses delivered ones, also after a relaunch.
-- The sounds themselves are placeholders until a pick from the previews (ticks T0–T6, end chimes E0–E6, made by a small synth script).
+- Sounds picked from previews on 2026-11-21: glass ping tick, the original two-tone ding-ding before the voice.
 - Bundled sounds are a native change, so `version` is 1.2.0: run `npm run release:ios:full` on the Mac before any further OTA.
 
 ### Next: Live Activity on the lock screen (needs the Mac)
