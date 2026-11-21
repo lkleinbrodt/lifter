@@ -51,7 +51,8 @@
         {
           "sounds": [
             "./assets/sounds/rest-tick.wav",
-            "./assets/sounds/rest-over.wav"
+            "./assets/sounds/rest-over-jarvis.wav",
+            "./assets/sounds/rest-over-elle.wav"
           ]
         }
       ],

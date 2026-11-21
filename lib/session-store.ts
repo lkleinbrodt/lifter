@@ -8,7 +8,7 @@ import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getActiveWorkout } from './db';
 import { formatDuration } from './workout-edit';
-import { playRestOver, playRestTick, preloadRestSounds } from './rest-sound';
+import { loadRestVoice, playRestOver, playRestTick, preloadRestSounds, restOverSoundFile } from './rest-sound';
 import type { Workout } from './workout';
 import { workoutDisplayName } from './workout-names';
 import { useSyncExternalStore } from 'react';
@@ -131,7 +131,7 @@ async function scheduleNotifications(rest: RestTimer | null) {
       const elapsed = formatDuration(Math.round((at - (rest.endsAt - rest.durationSec * 1000)) / 1000));
       await scheduleAt(at, { title: `Rest ${elapsed}`, body: `${left} left`, sound: 'rest-tick.wav' });
     }
-    await scheduleAt(rest.endsAt, { title: 'Rest over', body: 'Time for the next set.', sound: 'rest-over.wav' });
+    await scheduleAt(rest.endsAt, { title: 'Rest over', body: 'Time for the next set.', sound: restOverSoundFile() });
   } catch {
     // permission denied: the in-app countdown and sounds still work
   }
@@ -197,8 +197,14 @@ export async function skipRest() {
   applyRest(null);
 }
 
+/** Re-schedules the running rest's notifications, e.g. after the voice setting changes. */
+export function refreshRestNotifications() {
+  queueNotifications(snapshot.rest);
+}
+
 /** Restores a rest timer that was running when the app was killed. */
 export async function restoreRest() {
+  await loadRestVoice();
   try {
     const raw = await AsyncStorage.getItem(REST_KEY);
     const rest = raw ? (JSON.parse(raw) as RestTimer) : null;

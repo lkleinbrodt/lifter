@@ -108,6 +108,7 @@ lib/                      # Core business logic
   workout-actions.ts      # Workout lifecycle against storage: start, finish (+ progression), reopen, discard, delete
   workout-names.ts        # Display names from templates ("B · Horizontal + Deadlift"), imports matched by main lifts
   session-store.ts        # App-wide active workout + rest timer (useSession), local rest notifications
+  rest-sound.ts           # Rest sounds (minute tick, "Rest is over" per voice) via expo-audio; voice setting
 hooks/                    # Custom React hooks (color scheme, theme color)
 constants/
   theme.ts                # Design system: colors, fonts, layout, shadows
@@ -144,6 +145,7 @@ GSLP keys:
 - `@gslp_state` — `{ weights: Record<GslpLiftKey, number>, pullVariant: 'latPulldown' | 'chinup', accessoryPicks: Partial<Record<AccessoryArchetype, string>>, history: GslpSessionLog[] }`
 - The in-progress workout lives in SQLite (the one `workouts` row with no `finished_at`), saved on every edit.
 - `@rest_timer` — the running rest timer (`endsAt`, `durationSec`), so it survives a relaunch
+- `@rest_voice` — `'jarvis' | 'elle'`, which voice says "Rest is over" (Settings → Rest voice)
 
 ### GSLP Program Logic (`lib/gslp.ts`)
 - **Rotation**: strict A/B alternation (A/B/A, then B/A/B). The next workout is the opposite of the last logged one. Week/day come from the session index (3 per week).
