@@ -1,21 +1,31 @@
 import * as Haptics from 'expo-haptics';
-import { ActivityIndicator, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { Colors, Fonts, Layout, Shadows } from '@/constants/theme';
+import { C, Radius } from '@/constants/theme';
 import { ThemedText } from '../themed-text';
+
+type ButtonVariant = 'primary' | 'secondary' | 'plain' | 'destructive';
 
 type ButtonProps = {
   title: string;
   onPress: () => void;
-  variant?: 'primary' | 'secondary' | 'danger';
+  /** `danger` is the pre-3.5 name for `destructive`. */
+  variant?: ButtonVariant | 'danger';
+  size?: 'lg' | 'md' | 'sm';
   disabled?: boolean;
   loading?: boolean; // shows a spinner and ignores presses, keeping the button's look
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 };
 
-export function Button({ title, onPress, variant = 'primary', disabled, loading, style }: ButtonProps) {
+const HEIGHT = { lg: 56, md: 48, sm: 36 };
+const FONT = { lg: 17, md: 16, sm: 14 };
+
+export function Button({ title, onPress, variant = 'primary', size, disabled, loading, style }: ButtonProps) {
+  const kind: ButtonVariant = variant === 'danger' ? 'destructive' : variant;
+  const height = HEIGHT[size ?? (kind === 'primary' ? 'lg' : 'md')];
+  const fontSize = FONT[size ?? (kind === 'primary' ? 'lg' : 'md')];
   const inactive = disabled || loading;
-  const textColor = variant === 'primary' ? Colors.dark.background : Colors.dark.text;
+  const textColor = kind === 'primary' ? C.onAccent : kind === 'destructive' ? C.destructive : kind === 'plain' ? C.accent : C.t1;
   return (
     <Pressable
       onPress={() => {
@@ -25,13 +35,14 @@ export function Button({ title, onPress, variant = 'primary', disabled, loading,
         }
       }}
       disabled={inactive}
+      accessibilityRole="button"
       accessibilityState={{ disabled: inactive, busy: loading }}
       style={({ pressed }) => [
         styles.base,
-        variant === 'primary' && styles.primary,
-        variant === 'secondary' && styles.secondary,
+        { minHeight: height },
+        kind === 'primary' && styles.primary,
+        kind === 'secondary' && styles.secondary,
         disabled && styles.disabled,
-        loading && styles.loading,
         pressed && !inactive && styles.pressed,
         style,
       ]}>
@@ -40,9 +51,7 @@ export function Button({ title, onPress, variant = 'primary', disabled, loading,
           <ActivityIndicator color={textColor} />
         </View>
       ) : (
-        <ThemedText type="defaultSemiBold" style={[styles.text, variant !== 'danger' && { color: textColor }]}>
-          {title}
-        </ThemedText>
+        <ThemedText style={{ color: textColor, fontSize, fontWeight: kind === 'primary' ? '700' : '600' }}>{title}</ThemedText>
       )}
     </Pressable>
   );
@@ -50,37 +59,14 @@ export function Button({ title, onPress, variant = 'primary', disabled, loading,
 
 const styles = StyleSheet.create({
   base: {
-    paddingVertical: 16,
-    borderRadius: Layout.radius,
+    paddingHorizontal: 16,
+    borderRadius: Radius.button,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  primary: {
-    backgroundColor: Colors.dark.tint,
-    ...Shadows.button,
-  },
-  secondary: {
-    backgroundColor: Colors.dark.surfaceHighlight,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  disabled: {
-    backgroundColor: Colors.dark.surfaceHighlight,
-    opacity: 0.5,
-  },
-  loading: {
-    opacity: 0.8,
-  },
-  spinnerRow: {
-    height: 20, // about the title's line height, so the button doesn't jump
-    justifyContent: 'center',
-  },
-  pressed: {
-    opacity: 0.9,
-    transform: [{ scale: 0.98 }],
-  },
-  text: {
-    fontFamily: Fonts.family,
-    letterSpacing: 0.5,
-  },
+  primary: { backgroundColor: C.accent },
+  secondary: { backgroundColor: C.s2 },
+  disabled: { opacity: 0.4 },
+  spinnerRow: { height: 22, justifyContent: 'center' },
+  pressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
 });

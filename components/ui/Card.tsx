@@ -1,29 +1,33 @@
 import { StyleSheet, View, type ViewProps } from 'react-native';
 
-import { Colors, Layout, Shadows } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { C, Radius, Space } from '@/constants/theme';
 
-export function Card({ style, children, ...props }: ViewProps) {
-  const theme = useColorScheme() ?? 'light';
+type CardProps = ViewProps & {
+  /** plain: flat s1. hero: larger radius and padding. group: superset ring. */
+  variant?: 'plain' | 'hero' | 'group';
+};
 
+export function Card({ variant = 'plain', style, children, ...props }: CardProps) {
   return (
-    <View
-      style={[
-        styles.card,
-        { backgroundColor: Colors[theme].surface, borderColor: Colors[theme].border },
-        style,
-      ]}
-      {...props}>
+    <View style={[styles.plain, variant === 'hero' && styles.hero, variant === 'group' && styles.group, style]} {...props}>
       {children}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    borderRadius: Layout.radius,
-    padding: Layout.spacing,
+  plain: {
+    backgroundColor: C.s1,
+    borderRadius: Radius.card,
+    padding: Space.card,
+  },
+  hero: {
+    borderRadius: Radius.hero,
+    padding: 18,
+  },
+  group: {
+    borderRadius: Radius.group,
     borderWidth: 1,
-    ...Shadows.card,
+    borderColor: C.supersetLine,
   },
 });

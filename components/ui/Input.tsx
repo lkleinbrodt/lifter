@@ -41,7 +41,7 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     color: Colors.dark.text,
-    fontFamily: Fonts.family,
+    fontFamily: Fonts.num,
     fontSize: 18,
     fontWeight: '600',
   },

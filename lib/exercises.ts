@@ -166,3 +166,34 @@ const byStrongName = new Map(list.flatMap((e) => (e.strongNames ?? []).map((name
 export function exerciseIdForStrongName(name: string): string | undefined {
   return byStrongName.get(name);
 }
+
+// ---- Display helpers (stored names never change) ----
+
+/**
+ * Splits a catalog name for display: "Bench Press (Barbell)" → Bench Press / Barbell;
+ * "Calf Raise (Standing, Single Leg, Straight)" → Calf Raise / Standing · single leg · straight.
+ */
+export function splitExerciseName(name: string): { title: string; detail?: string } {
+  const match = /^(.*?)\s*\(([^)]*)\)\s*$/.exec(name);
+  if (!match) return { title: name };
+  const parts = match[2]
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part, index) => (index === 0 ? part : part.toLowerCase()));
+  return { title: match[1], detail: parts.join(' · ') || undefined };
+}
+
+export function isBarbellExercise(id: string) {
+  return splitExerciseName(EXERCISE_CATALOG[id]?.name ?? '').detail === 'Barbell';
+}
+
+const trimNumber = (value: number) => (Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2))));
+
+/** A set's load for display: added load of 0 is "BW", assistance shows as "−20". */
+export function formatLoad(weight: number | undefined, tracking: TrackingType): string {
+  if (weight === undefined) return '';
+  if (tracking === 'addedWeightReps') return weight === 0 ? 'BW' : `+${trimNumber(weight)}`;
+  if (tracking === 'assistedReps') return weight === 0 ? 'BW' : `−${trimNumber(weight)}`;
+  return trimNumber(weight);
+}

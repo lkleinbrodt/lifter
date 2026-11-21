@@ -1,48 +1,29 @@
 import { StyleSheet, Text, type TextProps } from 'react-native';
 
-import { Colors, Fonts } from '@/constants/theme';
-import { useThemeColor } from '@/hooks/use-theme-color';
+import { C, Fonts, Type, numStyle } from '@/constants/theme';
+
+type ScaleType = 'largeTitle' | 'title1' | 'title2' | 'headline' | 'body' | 'callout' | 'subhead' | 'caption';
+/** Pre-3.5 names, kept as aliases (same sizes as before) until every screen has moved over. */
+type LegacyType = 'default' | 'title' | 'defaultSemiBold' | 'subtitle' | 'label' | 'display';
 
 export type ThemedTextProps = TextProps & {
-  lightColor?: string;
-  darkColor?: string;
-  type?: 'default' | 'title' | 'defaultSemiBold' | 'subtitle' | 'label' | 'display';
+  type?: ScaleType | LegacyType;
+  /** Numbers: Menlo with tabular figures. */
+  num?: boolean;
 };
 
-export function ThemedText({
-  style,
-  lightColor,
-  darkColor,
-  type = 'default',
-  ...rest
-}: ThemedTextProps) {
-  const color = useThemeColor({ light: lightColor, dark: darkColor }, 'text');
-
-  const isLabel = type === 'label';
-  const textColor = isLabel ? Colors.dark.textMuted : color;
-
-  return (
-    <Text
-      style={[
-        { color: textColor, fontFamily: Fonts.family },
-        type === 'default' && styles.default,
-        type === 'defaultSemiBold' && styles.defaultSemiBold,
-        type === 'title' && styles.title,
-        type === 'subtitle' && styles.subtitle,
-        type === 'label' && styles.label,
-        type === 'display' && styles.display,
-        style,
-      ]}
-      {...rest}
-    />
-  );
+export function ThemedText({ style, type = 'default', num, ...rest }: ThemedTextProps) {
+  return <Text style={[styles.base, styles[type], num && numStyle, style]} {...rest} />;
 }
 
 const styles = StyleSheet.create({
-  display: { fontSize: Fonts.size.display, fontWeight: '700' },
-  title: { fontSize: Fonts.size.header, fontWeight: '700', marginBottom: 4 },
-  subtitle: { fontSize: Fonts.size.title, fontWeight: '600' },
+  base: { color: C.t1, fontFamily: Fonts.text },
+  ...Type,
+  // Legacy aliases
   default: { fontSize: Fonts.size.body },
   defaultSemiBold: { fontSize: Fonts.size.body, fontWeight: '600' },
-  label: { fontSize: Fonts.size.label, textTransform: 'uppercase', letterSpacing: 1 },
+  title: { fontSize: Fonts.size.header, fontWeight: '700', marginBottom: 4 },
+  subtitle: { fontSize: Fonts.size.title, fontWeight: '600' },
+  display: { fontSize: Fonts.size.display, fontWeight: '700' },
+  label: { fontSize: Fonts.size.label, textTransform: 'uppercase', letterSpacing: 1, color: C.t2 },
 });
