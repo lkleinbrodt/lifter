@@ -46,7 +46,15 @@
       ],
       "expo-sqlite",
       "./plugins/without-push-entitlement",
-      "expo-notifications",
+      [
+        "expo-notifications",
+        {
+          "sounds": [
+            "./assets/sounds/rest-tick.wav",
+            "./assets/sounds/rest-over.wav"
+          ]
+        }
+      ],
       [
         "expo-audio",
         {

@@ -3,7 +3,7 @@
 // and checking what's on the phone.
 
 import * as Notifications from 'expo-notifications';
-import { playRestDone } from '@/lib/rest-sound';
+import { playRestOver } from '@/lib/rest-sound';
 import * as Updates from 'expo-updates';
 
 import { Alert, Share, StyleSheet, View } from 'react-native';
@@ -153,7 +153,7 @@ export function DevSettings() {
         Tools
       </ThemedText>
       <Card style={styles.card}>
-        <Button title="Test rest chime" variant="secondary" onPress={playRestDone} />
+        <Button title="Test rest sound" variant="secondary" onPress={playRestOver} />
         <Button title="Test rest notification" variant="secondary" onPress={testNotification} />
         <Button title="Share GSLP state (JSON)" variant="secondary" onPress={shareGslpState} />
         <Button title="Import Strong history" variant="secondary" onPress={() => router.push('/import-strong')} />
