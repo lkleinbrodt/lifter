@@ -36,3 +36,18 @@ export function formatPlateMath(weight: number) {
   }
   return `Plates per side: ${plates.join(' + ')}`;
 }
+
+const trim = (value: number) => (Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2))));
+
+/** Plates per side, compact: "45·10·2.5", "bar" at or under the bar, "—" with no weight. */
+export function formatPlatesCompact(weight: number | undefined, separator = '·') {
+  if (weight === undefined || weight <= 0) return '—';
+  const plates = calculatePlateMath(weight);
+  return plates.length === 0 ? 'bar' : plates.map(trim).join(separator);
+}
+
+/** The card's plate line: "160 lb · 45 · 10 · 2.5 /side", or "45 lb · bar". */
+export function formatPlateLine(weight: number) {
+  const plates = formatPlatesCompact(weight, ' · ');
+  return plates === 'bar' ? `${trim(weight)} lb · bar` : `${trim(weight)} lb · ${plates} /side`;
+}

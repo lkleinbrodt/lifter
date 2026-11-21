@@ -1,20 +1,24 @@
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { SET_COLUMNS, type SetPatch, SetRow, weightHeader } from './set-row';
-import { previousSetFor, setLabels } from '@/lib/workout-edit';
+import React, { useEffect, useState } from 'react';
+import { ROW_PADDING, SET_COLUMNS, type SetPatch, SetRow, weightHeader } from './set-row';
+import { isBarbellExercise, getExercise, splitExerciseName } from '@/lib/exercises';
+import { previousSetFor, setLabels, setScheme } from '@/lib/workout-edit';
 
-import { Colors } from '@/constants/theme';
+import { C, Radius, numStyle } from '@/constants/theme';
+import { Chip } from '@/components/ui/primitives';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import React from 'react';
 import { ThemedText } from '@/components/themed-text';
 import type { WorkoutExercise, WorkoutSet } from '@/lib/workout';
-import { formatPlateMath } from '@/lib/plates';
-import { getExercise } from '@/lib/exercises';
+import { formatPlateLine } from '@/lib/plates';
 
 type ExerciseCardProps = {
   entry: WorkoutExercise;
   previous: WorkoutSet[];
+  mainLift?: boolean;
   slotLabel?: string;
   choices?: string[]; // catalog ids offered as one-tap swaps (accessory archetype pool)
+  /** The workout's current set, when it's in this card. */
+  currentSetId?: string;
   onSetChange: (setId: string, patch: SetPatch) => void;
   onSetDelete: (setId: string) => void;
   onAddSet: () => void;
@@ -23,13 +27,15 @@ type ExerciseCardProps = {
   onShowHistory: () => void;
 };
 
-const isBarbell = (name: string) => name.endsWith('(Barbell)');
+const fmt = (value: number | undefined) => (value === undefined ? '' : String(Number(value.toFixed(2))));
 
 export function ExerciseCard({
   entry,
   previous,
+  mainLift,
   slotLabel,
   choices,
+  currentSetId,
   onSetChange,
   onSetDelete,
   onAddSet,
@@ -38,157 +44,173 @@ export function ExerciseCard({
   onShowHistory,
 }: ExerciseCardProps) {
   const exercise = getExercise(entry.exerciseId);
+  const { title, detail } = splitExerciseName(exercise.name);
+  const barbell = isBarbellExercise(entry.exerciseId);
   const labels = setLabels(entry.sets);
   const header = weightHeader(exercise.tracking);
-  const nextWorking = entry.sets.find((set) => !set.done && set.type !== 'warmup');
-  const plateWeight = nextWorking?.weight ?? nextWorking?.target?.weight;
+  const [plates, setPlates] = useState(false);
+
+  // Warm-ups collapse to one line once all are checked; tapping it reopens them.
+  const warmups = entry.sets.filter((set) => set.type === 'warmup');
+  const warmupsDone = warmups.length > 0 && warmups.every((set) => set.done);
+  const [warmupsOpen, setWarmupsOpen] = useState(false);
+  useEffect(() => {
+    if (warmupsDone) setWarmupsOpen(false);
+  }, [warmupsDone]);
+  const hideWarmups = warmupsDone && !warmupsOpen;
+
+  // Plate line follows this card's current set, else its next unchecked set.
+  const plateSet = entry.sets.find((set) => set.id === currentSetId) ?? entry.sets.find((set) => !set.done);
+  const plateWeight = plateSet?.weight ?? plateSet?.target?.weight;
+
+  const scheme = mainLift ? setScheme(entry.sets) : undefined;
+  const subtitle = [detail, mainLift ? scheme : slotLabel].filter(Boolean).join(' · ');
+  const showChips = !!choices && choices.length > 1 && !entry.sets.some((set) => set.done);
 
   return (
     <View style={[styles.card, entry.supersetGroup && styles.superset]}>
       <View style={styles.header}>
         <Pressable style={styles.titleBlock} onPress={onShowHistory} accessibilityRole="button" accessibilityHint="Shows past sessions">
-          <ThemedText type="defaultSemiBold" style={styles.title}>
-            {exercise.name}
-          </ThemedText>
-          {slotLabel ? <ThemedText style={styles.subtitle}>{slotLabel}</ThemedText> : null}
-          {isBarbell(exercise.name) && plateWeight ? (
-            <ThemedText style={styles.subtitle}>
-              {plateWeight} lbs · {formatPlateMath(plateWeight).replace('Plates per side: ', '')}
-              {plateWeight > 45 ? ' / side' : ''}
+          <ThemedText style={mainLift ? styles.titleMain : styles.title}>{title}</ThemedText>
+          {subtitle ? <ThemedText type="subhead">{subtitle}</ThemedText> : null}
+          {barbell && plateWeight ? (
+            <ThemedText num style={styles.plateLine}>
+              {formatPlateLine(plateWeight)}
             </ThemedText>
           ) : null}
         </Pressable>
-        <Pressable onPress={onMenu} hitSlop={10} accessibilityLabel="Exercise options">
-          <IconSymbol name="ellipsis.circle" size={22} color={Colors.dark.tint} />
+        <Pressable onPress={onMenu} style={styles.menu} accessibilityLabel="Exercise options">
+          <IconSymbol name="ellipsis" size={20} color={C.t2} />
         </Pressable>
       </View>
 
-      {choices && choices.length > 1 ? (
+      {showChips ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
           {choices.map((id) => {
             const selected = id === entry.exerciseId;
-            return (
-              <Pressable
-                key={id}
-                onPress={() => !selected && onChoose(id)}
-                style={[styles.chip, selected && styles.chipSelected]}>
-                <ThemedText style={[styles.chipText, selected && styles.chipTextSelected]}>{getExercise(id).name}</ThemedText>
-              </Pressable>
-            );
+            return <Chip key={id} label={splitExerciseName(getExercise(id).name).title} selected={selected} onPress={() => !selected && onChoose(id)} />;
           })}
         </ScrollView>
       ) : null}
 
       <View style={styles.columns}>
-        <ThemedText style={[styles.colHead, { width: SET_COLUMNS.label }]}>Set</ThemedText>
-        <ThemedText style={[styles.colHead, styles.colPrevious]}>Previous</ThemedText>
-        {header ? <ThemedText style={[styles.colHead, { width: SET_COLUMNS.input }]}>{header}</ThemedText> : null}
-        <ThemedText style={[styles.colHead, { width: SET_COLUMNS.input }]}>
+        <ThemedText type="caption" style={{ width: SET_COLUMNS.label }}>
+          Set
+        </ThemedText>
+        <ThemedText type="caption" style={styles.colPrevious}>
+          Prev
+        </ThemedText>
+        {header ? (
+          barbell ? (
+            <Pressable
+              onPress={() => setPlates((value) => !value)}
+              style={styles.colToggle}
+              hitSlop={{ top: 10, bottom: 10 }}
+              accessibilityRole="button"
+              accessibilityLabel={plates ? 'Show pounds' : 'Show plates per side'}>
+              <ThemedText type="caption" style={[styles.colHead, plates && styles.colHeadActive]}>
+                {plates ? 'Plates' : header}
+              </ThemedText>
+            </Pressable>
+          ) : (
+            <ThemedText type="caption" style={[styles.colHead, { width: SET_COLUMNS.weight }]}>
+              {header}
+            </ThemedText>
+          )
+        ) : null}
+        <ThemedText type="caption" style={[styles.colHead, { width: SET_COLUMNS.reps }]}>
           {exercise.tracking === 'duration' ? 'Sec' : 'Reps'}
         </ThemedText>
         <View style={{ width: SET_COLUMNS.check }} />
       </View>
 
-      {entry.sets.map((set, index) => (
-        <SetRow
-          key={set.id}
-          label={labels[index]}
-          set={set}
-          previous={previousSetFor(entry.sets, index, previous)}
-          tracking={exercise.tracking}
-          onChange={(patch) => onSetChange(set.id, patch)}
-          onDelete={() => onSetDelete(set.id)}
-        />
-      ))}
+      {hideWarmups ? (
+        <Pressable
+          onPress={() => setWarmupsOpen(true)}
+          style={({ pressed }) => [styles.warmupLine, pressed && styles.pressed]}
+          accessibilityRole="button"
+          accessibilityHint="Shows the warm-up sets">
+          <IconSymbol name="checkmark" size={13} weight="bold" color={C.accent} />
+          <ThemedText style={styles.warmupLineLabel}>
+            Warm-up {warmups.length}/{warmups.length}
+          </ThemedText>
+          <ThemedText num style={styles.warmupLineSets} numberOfLines={1}>
+            {warmups.map((set) => `${fmt(set.weight)}×${fmt(set.reps)}`).join(' · ')}
+          </ThemedText>
+        </Pressable>
+      ) : null}
 
-      <Pressable onPress={onAddSet} style={({ pressed }) => [styles.addSet, pressed && styles.pressed]}>
-        <ThemedText style={styles.addSetText}>+ Add Set</ThemedText>
-      </Pressable>
+      {entry.sets.map((set, index) =>
+        hideWarmups && set.type === 'warmup' ? null : (
+          <SetRow
+            key={set.id}
+            label={labels[index]}
+            set={set}
+            previous={previousSetFor(entry.sets, index, previous)}
+            tracking={exercise.tracking}
+            current={set.id === currentSetId}
+            plates={barbell && plates}
+            onChange={(patch) => onSetChange(set.id, patch)}
+            onDelete={() => onSetDelete(set.id)}
+          />
+        ),
+      )}
+
+      <View style={styles.footer}>
+        <Pressable onPress={onAddSet} style={({ pressed }) => [styles.addSet, pressed && styles.pressed]} accessibilityRole="button">
+          <ThemedText style={styles.addSetText}>+ Set</ThemedText>
+        </Pressable>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: Colors.dark.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
+    backgroundColor: C.s1,
+    borderRadius: Radius.card,
     overflow: 'hidden',
-    paddingTop: 12,
+    paddingTop: 14,
   },
   superset: {
     borderLeftWidth: 3,
-    borderLeftColor: Colors.dark.tint,
+    borderLeftColor: C.superset,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    paddingHorizontal: 12,
+    paddingLeft: 16,
+    paddingRight: 6,
     gap: 8,
   },
-  titleBlock: {
-    flex: 1,
-    gap: 2,
-  },
-  title: {
-    color: Colors.dark.tint,
-  },
-  subtitle: {
-    fontSize: 12,
-    color: Colors.dark.textMuted,
-  },
-  chips: {
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingTop: 10,
-  },
-  chip: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  chipSelected: {
-    backgroundColor: Colors.dark.tintMuted,
-    borderColor: Colors.dark.tint,
-  },
-  chipText: {
-    fontSize: 12,
-    color: Colors.dark.textMuted,
-  },
-  chipTextSelected: {
-    color: Colors.dark.tint,
-  },
+  titleBlock: { flex: 1, gap: 2, paddingTop: 2 },
+  titleMain: { fontSize: 19, lineHeight: 24, fontWeight: '600' },
+  title: { fontSize: 17, lineHeight: 22, fontWeight: '600' },
+  plateLine: { ...numStyle, fontSize: 15, color: C.t1, marginTop: 4 },
+  menu: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginTop: -8 },
+  chips: { gap: 8, paddingHorizontal: 16, paddingTop: 10 },
   columns: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingTop: 12,
-    paddingBottom: 4,
+    paddingHorizontal: ROW_PADDING,
+    paddingTop: 14,
+    paddingBottom: 6,
   },
-  colHead: {
-    fontSize: 12,
-    color: Colors.dark.textMuted,
-    textAlign: 'center',
-  },
-  colPrevious: {
-    flex: 1,
-  },
-  addSet: {
-    margin: 12,
-    marginTop: 8,
-    paddingVertical: 8,
-    borderRadius: 10,
+  colHead: { textAlign: 'center' },
+  colHeadActive: { color: C.accent },
+  colPrevious: { flex: 1, textAlign: 'center' },
+  colToggle: { width: SET_COLUMNS.weight, alignItems: 'center' },
+  warmupLine: {
+    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.dark.surfaceHighlight,
+    gap: 8,
+    minHeight: 44,
+    paddingHorizontal: 16,
   },
-  addSetText: {
-    fontSize: 14,
-  },
-  pressed: {
-    opacity: 0.8,
-  },
+  warmupLineLabel: { fontSize: 15, color: C.t2 },
+  warmupLineSets: { flex: 1, fontSize: 14, color: C.t3, textAlign: 'right' },
+  footer: { flexDirection: 'row', paddingHorizontal: 6 },
+  addSet: { height: 44, paddingHorizontal: 10, justifyContent: 'center' },
+  addSetText: { fontSize: 15, fontWeight: '600', color: C.t2 },
+  pressed: { opacity: 0.6 },
 });

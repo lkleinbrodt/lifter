@@ -169,3 +169,57 @@ export function formatMinutes(totalSec: number) {
   const h = Math.floor(minutes / 60);
   return h > 0 ? `${h}h ${minutes % 60}m` : `${minutes}m`;
 }
+
+export type SetRef = { entryId: string; setId: string };
+
+/**
+ * The order sets are meant to be done in. Exercises go in workout order, except a superset
+ * group: every member's warm-ups first, then work sets alternate by round (A1 set 1, A2 set 1,
+ * A1 set 2, …), and when members have different set counts the leftovers come last.
+ */
+export function setOrder(workout: Workout): SetRef[] {
+  const order: SetRef[] = [];
+  const seenGroups = new Set<string>();
+  for (const entry of workout.exercises) {
+    if (!entry.supersetGroup) {
+      for (const set of entry.sets) order.push({ entryId: entry.id, setId: set.id });
+      continue;
+    }
+    if (seenGroups.has(entry.supersetGroup)) continue;
+    seenGroups.add(entry.supersetGroup);
+    const members = workout.exercises.filter((item) => item.supersetGroup === entry.supersetGroup);
+    for (const member of members) {
+      for (const set of member.sets) if (set.type === 'warmup') order.push({ entryId: member.id, setId: set.id });
+    }
+    const work = members.map((member) => member.sets.filter((set) => set.type !== 'warmup'));
+    const rounds = Math.max(0, ...work.map((sets) => sets.length));
+    for (let round = 0; round < rounds; round++) {
+      members.forEach((member, index) => {
+        const set = work[index][round];
+        if (set) order.push({ entryId: member.id, setId: set.id });
+      });
+    }
+  }
+  return order;
+}
+
+/** The first unchecked set in workout order (see setOrder). Checking out of order is fine; this just recomputes. */
+export function currentSet(workout: Workout): SetRef | undefined {
+  const done = new Set(workout.exercises.flatMap((entry) => entry.sets.filter((set) => set.done).map((set) => set.id)));
+  return setOrder(workout).find((ref) => !done.has(ref.setId));
+}
+
+/** "2×5, 1×5+": the working-set scheme, from targets (or values when there's no target). */
+export function setScheme(sets: WorkoutSet[]): string {
+  const groups: { label: string; count: number }[] = [];
+  for (const set of sets) {
+    if (set.type === 'warmup') continue;
+    const reps = set.target?.reps ?? set.reps;
+    if (reps === undefined) continue;
+    const label = set.type === 'amrap' ? `${reps}+` : String(reps);
+    const last = groups.at(-1);
+    if (last?.label === label) last.count++;
+    else groups.push({ label, count: 1 });
+  }
+  return groups.map((group) => `${group.count}×${group.label}`).join(', ');
+}

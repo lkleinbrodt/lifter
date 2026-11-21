@@ -197,7 +197,7 @@ Each phase is its own branch and PR.
 
 ### Phase 3.5: Visual polish
 - The functional screens work but look rough. Do a dedicated design pass on the workout screen, start screen, history and summary: spacing, hierarchy, the set table, and the tone of the done/rest states.
-- **Approved spec: `docs/ui-overhaul-proposal.md`** (decisions, tokens, per-screen specs). The visual reference is the artifact linked there; where they differ, the spec wins. Not started yet.
+- **Approved spec: `docs/ui-overhaul-proposal.md`** (decisions, tokens, per-screen specs). The visual reference is the artifact linked there; where they differ, the spec wins. 3.5a and 3.5b are built (not yet on the phone); 3.5c onward waits for the phone check.
 - Sub-phases, each its own branch and OTA update, with no native build:
   - **3.5a** Foundation: tokens, fonts, primitives, dark `Appearance`.
   - **3.5b** Workout ledger: the grid stays and every cell is editable, plus a current set, warm-ups that collapse, and a plate line with a plates toggle.
@@ -207,6 +207,12 @@ Each phase is its own branch and PR.
   - **3.5f** Minibar and restyled JS tab bar.
   - **3.5g** Picker, history sheet and catalog-backed Exercises tab.
 - After 3.5b, try the ledger on the phone mid-workout (SF Pro vs all-Menlo is a one-line flag) before continuing.
+- **Built (3.5a + 3.5b):**
+  - Tokens `C`, `Type`, `Space`, `Radius` in `constants/theme.ts`, with `Colors.dark.*` as aliases. `USE_MENLO_TEXT` is the font flag. Dark `Appearance` is forced in `app/_layout.tsx`.
+  - `components/ui/primitives.tsx` (Pill, Chip, Stat, ListRow, SectionHeader). Button and Card have the new variants.
+  - Helpers: `splitExerciseName`, `formatLoad` (BW) in `lib/exercises.ts`; `workoutDisplayName` in `lib/workout-names.ts`; `setOrder` / `currentSet` / `setScheme` in `lib/workout-edit.ts`; plate formatting in `lib/plates.ts`.
+  - Unused Expo template components (parallax-scroll-view, hello-wave, external-link, collapsible) were removed.
+  - Plates mode uses 12.5pt text in the weight column so `45·10·2.5` fits.
 - Scope is GSLP and the general app only. The 5/3/1 notes are parked at the bottom of the spec.
 
 ### Phase 4: Supersets

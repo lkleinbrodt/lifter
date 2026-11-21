@@ -20,6 +20,7 @@ import { type Workout, type WorkoutSet } from '@/lib/workout';
 import {
   addExercise,
   addSet,
+  currentSet,
   formatDuration,
   formatMinutes,
   hasDoneSets,
@@ -41,7 +42,7 @@ import { gslpOptionalSlots, gslpProgressionFor, gslpSlotChoices, gslpSlotLabel }
 
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { Colors, Fonts } from '@/constants/theme';
+import { C, Colors, Fonts, numStyle } from '@/constants/theme';
 import { ExerciseCard } from '@/components/workout/exercise-card';
 import { ExerciseHistorySheet } from '@/components/workout/exercise-history-sheet';
 import { ExercisePicker } from '@/components/workout/exercise-picker';
@@ -49,7 +50,9 @@ import type { ProgressionLine } from '@/lib/program-module';
 import type { SetPatch } from '@/components/workout/set-row';
 import { ThemedText } from '@/components/themed-text';
 import { formatSet } from '@/components/workout/set-row';
-import { gslpLifts } from '@/lib/gslp';
+import { gslpLifts, sessionPosition } from '@/lib/gslp';
+import { workoutDisplayName } from '@/lib/workout-names';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { loadGslpState } from '@/lib/gslp-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -81,6 +84,8 @@ export default function WorkoutScreen() {
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false); // editing a finished workout
   const editingRef = useRef(false);
+  const [notesOpen, setNotesOpen] = useState(false);
+  const notesRef = useRef<TextInput>(null);
   const [now, setNow] = useState(() => Date.now());
 
   // ---- Load + autosave ----
@@ -224,6 +229,27 @@ export default function WorkoutScreen() {
     }
   };
 
+  const openWorkoutMenu = () => {
+    const hasNotes = !!workoutRef.current?.notes;
+    const options = [
+      {
+        label: hasNotes ? 'Edit note' : 'Add note',
+        run: () => {
+          setNotesOpen(true);
+          setTimeout(() => notesRef.current?.focus(), 50);
+        },
+      },
+    ];
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options: [...options.map((o) => o.label), 'Cancel'], cancelButtonIndex: options.length, userInterfaceStyle: 'dark' },
+        (index) => options[index]?.run(),
+      );
+    } else {
+      Alert.alert('Workout', undefined, [...options.map((o) => ({ text: o.label, onPress: o.run })), { text: 'Cancel', style: 'cancel' as const }]);
+    }
+  };
+
   // ---- Finish / discard / undo ----
 
   const finish = () => {
@@ -354,6 +380,17 @@ export default function WorkoutScreen() {
   const progression = finished && isGslp(workout) ? gslpProgressionFor(gslp, workout.id) : undefined;
   const lines = summary ?? progression?.summary;
   const optionalSlots = !finished && isGslp(workout) ? gslpOptionalSlots(gslp, workout) : [];
+  const current = finished ? undefined : currentSet(workout);
+  const totalSets = workout.exercises.reduce((sum, entry) => sum + entry.sets.length, 0);
+  const doneSets = workout.exercises.reduce((sum, entry) => sum + entry.sets.filter((set) => set.done).length, 0);
+  const eyebrow =
+    workout.source.kind === 'program'
+      ? (() => {
+          const { week, day } = sessionPosition(workout.source.sessionIndex);
+          return `${workout.source.program.toUpperCase()} · Week ${week} · Day ${day}`;
+        })()
+      : new Date(workout.startedAt).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  const showNotesField = (!finished || editing) && (notesOpen || !!workout.notes);
 
   return (
     <>
@@ -362,13 +399,21 @@ export default function WorkoutScreen() {
           title: finished ? (editing ? 'Edit Workout' : 'Summary') : formatDuration(stats.durationSec),
           // Plain text, no background: iOS 26 already draws a glass capsule around header items,
           // and a filled pill inside it shows as a double ring.
+          headerTitleStyle: finished ? undefined : { fontFamily: Fonts.num },
           headerRight:
             finished && !editing
               ? undefined
               : () => (
-                  <Pressable onPress={editing ? stopEditing : finish} disabled={busy} hitSlop={8} style={styles.headerButton}>
-                    <ThemedText style={styles.headerButtonText}>{editing ? 'Save' : 'Finish'}</ThemedText>
-                  </Pressable>
+                  <View style={styles.headerActions}>
+                    {!finished ? (
+                      <Pressable onPress={openWorkoutMenu} hitSlop={8} style={styles.headerButton} accessibilityLabel="Workout options">
+                        <IconSymbol name="ellipsis" size={20} color={C.t1} />
+                      </Pressable>
+                    ) : null}
+                    <Pressable onPress={editing ? stopEditing : finish} disabled={busy} hitSlop={8} style={styles.headerButton}>
+                      <ThemedText style={styles.headerButtonText}>{editing ? 'Save' : 'Finish'}</ThemedText>
+                    </Pressable>
+                  </View>
                 ),
         }}
       />
@@ -380,23 +425,49 @@ export default function WorkoutScreen() {
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag">
           <View style={styles.titleBlock}>
-            <ThemedText type="title">{workout.name}</ThemedText>
-            <ThemedText style={styles.muted}>
-              {new Date(workout.startedAt).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
-            </ThemedText>
-            {finished && !editing ? (
-              workout.notes ? <ThemedText style={styles.notesText}>{workout.notes}</ThemedText> : null
+            <ThemedText type="caption">{eyebrow}</ThemedText>
+            <View style={styles.titleRow}>
+              <ThemedText type="title1" style={styles.flex}>
+                {workoutDisplayName(workout)}
+              </ThemedText>
+              {!finished ? (
+                <ThemedText num style={styles.counter}>
+                  {doneSets}/{totalSets}
+                </ThemedText>
+              ) : null}
+            </View>
+            {finished ? (
+              <ThemedText type="subhead">
+                {new Date(workout.startedAt).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
+              </ThemedText>
             ) : (
+              <View style={styles.progress}>
+                {workout.exercises.map((entry) => {
+                  const done = entry.sets.filter((set) => set.done).length;
+                  const fraction = entry.sets.length ? done / entry.sets.length : 0;
+                  return (
+                    <View key={entry.id} style={styles.progressSegment}>
+                      <View style={[styles.progressFill, { width: `${fraction * 100}%` }]} />
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+            {showNotesField ? (
               <TextInput
+                ref={notesRef}
                 style={styles.notes}
                 value={workout.notes ?? ''}
                 onChangeText={(notes) => apply((w) => ({ ...w, notes: notes || undefined }))}
-                placeholder="Notes"
-                placeholderTextColor={Colors.dark.textMuted}
+                onBlur={() => setNotesOpen(false)}
+                placeholder="Note"
+                placeholderTextColor={C.t3}
                 keyboardAppearance="dark"
                 multiline
               />
-            )}
+            ) : finished && workout.notes ? (
+              <ThemedText style={styles.notesText}>{workout.notes}</ThemedText>
+            ) : null}
           </View>
 
           {finished ? (
@@ -460,7 +531,9 @@ export default function WorkoutScreen() {
                     key={entry.id}
                     entry={entry}
                     previous={previous[entry.exerciseId] ?? []}
+                    mainLift={!!entry.slot && entry.slot in gslpLifts}
                     slotLabel={slotLabel}
+                    currentSetId={current?.entryId === entry.id ? current.setId : undefined}
                     choices={isGslp(workout) ? gslpSlotChoices(entry.slot)?.exerciseIds : undefined}
                     onSetChange={(setId, patch: SetPatch) => {
                       apply((w) => updateSet(w, entry.id, setId, patch));
@@ -478,6 +551,7 @@ export default function WorkoutScreen() {
 
           {!finished || editing ? (
             <View style={styles.footer}>
+              <Button title="Add exercise" variant="secondary" onPress={() => setPicker({ kind: 'add' })} />
               {optionalSlots.map((slot) => (
                 <Button
                   key={slot.slot}
@@ -486,12 +560,11 @@ export default function WorkoutScreen() {
                   onPress={() => addExerciseById(slot.exerciseId, slot.slot)}
                 />
               ))}
-              <Button title="Add Exercise" variant="secondary" onPress={() => setPicker({ kind: 'add' })} />
               {editing ? (
                 <Button title="Save Changes" onPress={stopEditing} />
               ) : (
                 <Pressable onPress={discard} style={styles.discard}>
-                  <ThemedText style={styles.discardText}>Discard Workout</ThemedText>
+                  <ThemedText style={styles.discardText}>Discard workout</ThemedText>
                 </Pressable>
               )}
             </View>
@@ -530,14 +603,20 @@ function Stat({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.dark.background },
-  content: { padding: 12, gap: 12 },
-  titleBlock: { gap: 4, paddingHorizontal: 4, paddingBottom: 4 },
+  content: { paddingHorizontal: 16, paddingTop: 8, gap: 12 },
+  titleBlock: { gap: 6, paddingHorizontal: 2, paddingBottom: 8 },
+  titleRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 12 },
+  counter: { ...numStyle, fontSize: 17, color: C.t2, paddingBottom: 4 },
+  progress: { flexDirection: 'row', gap: 3, marginTop: 6 },
+  progressSegment: { flex: 1, height: 4, borderRadius: 2, backgroundColor: C.s3, overflow: 'hidden' },
+  progressFill: { height: 4, backgroundColor: C.accent },
   muted: { color: Colors.dark.textMuted },
   small: { color: Colors.dark.textMuted, fontSize: 12 },
   up: { color: Colors.dark.tint },
   down: { color: Colors.dark.error },
-  headerButton: { paddingHorizontal: 8 },
-  headerButtonText: { color: Colors.dark.tint, fontWeight: '700' },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  headerButton: { paddingHorizontal: 8, minHeight: 32, justifyContent: 'center' },
+  headerButtonText: { color: C.accent, fontSize: 17, fontWeight: '600' },
   summary: { gap: 14 },
   statsRow: { flexDirection: 'row', justifyContent: 'space-between' },
   stat: { gap: 4 },
@@ -547,12 +626,12 @@ const styles = StyleSheet.create({
   notes: {
     marginTop: 4,
     paddingVertical: 6,
-    color: Colors.dark.text,
-    fontFamily: Fonts.family,
-    fontSize: 14,
+    color: C.t1,
+    fontFamily: Fonts.text,
+    fontSize: 15,
   },
-  notesText: { marginTop: 4, fontSize: 14 },
+  notesText: { marginTop: 4, fontSize: 15, color: C.t2 },
   footer: { gap: 12, marginTop: 4 },
   discard: { alignItems: 'center', paddingVertical: 12 },
-  discardText: { color: Colors.dark.error },
+  discardText: { color: C.destructive, fontSize: 16 },
 });
