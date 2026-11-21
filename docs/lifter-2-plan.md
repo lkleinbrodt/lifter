@@ -231,7 +231,7 @@ Each phase is its own branch and PR.
   - Not doing: reordering rows by round, creating supersets in the app (templates live in code), separate superset rest lengths.
 
 ### Rest timer sounds (1.2.0, needs a native build)
-- A tick at each full minute of rest (anchored to the start, so ±15s doesn't move them; none in the last 10s), then a ding-ding and a voice saying "Rest is over" (Threepio's Elle, made once with `/v1/tts`).
+- A tick at each full minute of rest (anchored to the start, so ±15s doesn't move them; none in the last 10s), then a ding-ding and a voice saying "Rest is over" (Threepio's Jarvis voice, generated once with `/v1/tts` and bundled as a file; nothing calls Threepio at runtime).
 - Locked or backgrounded: scheduled local notifications play the bundled files (`expo-notifications` `sounds` option, `rest-tick.wav` / `rest-over.wav`), like Strong. Notification sounds still obey the silent switch and Focus.
 - In the app: the same files play through `expo-audio` on JS timers (`lib/rest-sound.ts`), which ignores the silent switch and mixes over music. The foreground notification is silent and bannerless so nothing doubles.
 - Rest notifications carry `data.kind = 'rest'`; every reschedule cancels pending ones and dismisses delivered ones, also after a relaunch.
