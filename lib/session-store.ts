@@ -1,14 +1,15 @@
 // App-wide state for the workout in progress: which workout is active (for the minimized
 // bar) and the rest timer. Screens read it with useSession(); writes go through the
 // functions below. The rest timer is a reminder: it ticks each minute and says "Rest is over"
-// at the end: through expo-audio while the app is open, as notification sounds when locked.
+// at the end, as local notifications with bundled sounds, locked or not.
 
+import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getActiveWorkout } from './db';
 import { formatDuration } from './workout-edit';
-import { loadRestVoice, playRestOver, playRestTick, preloadRestSounds, restOverSoundFile } from './rest-sound';
+import { loadRestVoice, restOverSoundFile } from './rest-sound';
 import type { Workout } from './workout';
 import { workoutDisplayName } from './workout-names';
 import { useSyncExternalStore } from 'react';
@@ -63,15 +64,13 @@ export async function refreshActiveWorkout() {
 
 // ---- Rest timer ----
 
-// This handler only runs while Lifter is in the foreground, where the in-app sounds
-// (lib/rest-sound.ts) and the rest bar already cover it, so the notification stays quiet.
+// This handler only runs while Lifter is in the foreground: rest notifications play their
+// sound but show no banner (the rest bar is on screen), and the end of rest buzzes.
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: false,
-    shouldShowList: false,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
+  handleNotification: async (notification) => {
+    if (notification.request.content.data?.end) void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    return { shouldShowBanner: false, shouldShowList: false, shouldPlaySound: true, shouldSetBadge: false };
+  },
 });
 
 let permissionAsked = false;
@@ -111,17 +110,18 @@ async function cancelNotifications() {
   ]);
 }
 
-async function scheduleAt(at: number, content: Notifications.NotificationContentInput) {
+async function scheduleAt(at: number, content: Notifications.NotificationContentInput, end = false) {
   const seconds = Math.round((at - Date.now()) / 1000);
   if (seconds < 1) return;
   await Notifications.scheduleNotificationAsync({
-    content: { ...content, data: { kind: 'rest' } },
+    content: { ...content, data: { kind: 'rest', end } },
     trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds, repeats: false },
   });
 }
 
-// What the locked phone hears: a tick each minute and "Rest is over" at the end, as notification
-// sounds bundled into the app (the expo-notifications `sounds` plugin option).
+// A tick each minute and "Rest is over" at the end, as standard local notifications with sounds
+// bundled into the app (the expo-notifications `sounds` plugin option). Locked or open, the same
+// notifications make the sound; like any notification, they're muted by the silent switch.
 async function scheduleNotifications(rest: RestTimer | null) {
   await cancelNotifications();
   if (!rest) return;
@@ -131,7 +131,7 @@ async function scheduleNotifications(rest: RestTimer | null) {
       const elapsed = formatDuration(Math.round((at - (rest.endsAt - rest.durationSec * 1000)) / 1000));
       await scheduleAt(at, { title: `Rest ${elapsed}`, body: `${left} left`, sound: 'rest-tick.wav' });
     }
-    await scheduleAt(rest.endsAt, { title: 'Rest over', body: 'Time for the next set.', sound: restOverSoundFile() });
+    await scheduleAt(rest.endsAt, { title: 'Rest over', body: 'Time for the next set.', sound: restOverSoundFile() }, true);
   } catch {
     // permission denied: the in-app countdown and sounds still work
   }
@@ -143,33 +143,22 @@ function queueNotifications(rest: RestTimer | null) {
   notificationQueue = notificationQueue.then(() => scheduleNotifications(rest)).catch(() => undefined);
 }
 
-// In the foreground the same sounds play through expo-audio (lib/rest-sound.ts) on timers.
 // Clears the timer a moment after it ends, wherever the user is in the app.
 const EXPIRED_GRACE_MS = 1500;
-// A sound that would land later than this (the JS thread was suspended in the background) is dropped.
-const SOUND_LATE_MS = 2000;
-let timers: ReturnType<typeof setTimeout>[] = [];
+let expireTimer: ReturnType<typeof setTimeout> | null = null;
 
-function scheduleTimers(rest: RestTimer | null) {
-  timers.forEach(clearTimeout);
-  timers = [];
+function scheduleExpiry(rest: RestTimer | null) {
+  if (expireTimer) clearTimeout(expireTimer);
+  expireTimer = null;
   if (!rest) return;
-  preloadRestSounds();
-  const at = (time: number, fn: () => void) => timers.push(setTimeout(fn, Math.max(0, time - Date.now())));
-  const sound = (time: number, play: () => void) =>
-    at(time, () => {
-      if (snapshot.rest?.endsAt === rest.endsAt && Date.now() - time < SOUND_LATE_MS) play();
-    });
-  tickTimes(rest).forEach((time) => sound(time, playRestTick));
-  sound(rest.endsAt, playRestOver);
-  at(rest.endsAt + EXPIRED_GRACE_MS, () => {
+  expireTimer = setTimeout(() => {
     if (snapshot.rest?.endsAt === rest.endsAt) applyRest(null);
-  });
+  }, Math.max(0, rest.endsAt - Date.now()) + EXPIRED_GRACE_MS);
 }
 
 function applyRest(rest: RestTimer | null) {
   set({ rest });
-  scheduleTimers(rest);
+  scheduleExpiry(rest);
   void (rest ? AsyncStorage.setItem(REST_KEY, JSON.stringify(rest)) : AsyncStorage.removeItem(REST_KEY)).catch(
     () => undefined,
   );
@@ -210,7 +199,7 @@ export async function restoreRest() {
     const rest = raw ? (JSON.parse(raw) as RestTimer) : null;
     if (rest && rest.endsAt > Date.now()) {
       set({ rest });
-      scheduleTimers(rest);
+      scheduleExpiry(rest);
     }
     else if (rest) await AsyncStorage.removeItem(REST_KEY);
   } catch {

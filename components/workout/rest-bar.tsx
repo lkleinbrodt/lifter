@@ -33,8 +33,8 @@ export function RestBar({ bottomInset, next }: { bottomInset: number; next?: Nex
   const reduceMotion = useReducedMotion();
   const pulse = useSharedValue(0);
 
-  // Visual nudge when the countdown reaches zero: the fill pulses twice. The chime and haptic
-  // come from the store (lib/rest-sound.ts), so they fire on any screen. The store clears the timer shortly after.
+  // Visual nudge when the countdown reaches zero: the fill pulses twice. The sound and haptic
+  // come from the rest notification (lib/session-store.ts), on any screen. The store clears the timer shortly after.
   useEffect(() => {
     if (!rest || left !== 0 || fired.current === rest.endsAt) return;
     fired.current = rest.endsAt;

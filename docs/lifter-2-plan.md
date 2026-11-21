@@ -2,7 +2,7 @@
 
 Turn Lifter from "tells me what to do" into the app I use *during* the workout, replacing Strong. Strong's common tracking features plus Lifter's program logic: the workout opens with today's prescribed numbers already filled in.
 
-Status (2026-11-21): Phases 1–4 are on `main` and on the phone (1.1.0 + OTA).
+Status (2026-11-21): Phases 1–4 are on `main` and on the phone (1.1.0 + OTA). Rest timer sounds are in PR #12 (1.2.0, native build). Next up: the lock-screen Live Activity.
 
 ## Principles
 
@@ -231,12 +231,18 @@ Each phase is its own branch and PR.
   - Not doing: reordering rows by round, creating supersets in the app (templates live in code), separate superset rest lengths.
 
 ### Rest timer sounds (1.2.0, needs a native build)
-- A tick at each full minute of rest (anchored to the start, so ±15s doesn't move them; none in the last 10s), then a ding-ding and a voice saying "Rest is over". Jarvis (default) and Elle are both bundled (`rest-over-jarvis.wav` / `rest-over-elle.wav`, generated once with Threepio's `/v1/tts`; nothing calls Threepio at runtime). Settings → Rest voice picks one (`@rest_voice`) and plays it; changing it mid-rest reschedules the notification.
-- Locked or backgrounded: scheduled local notifications play the bundled files (`expo-notifications` `sounds` option, `rest-tick.wav` / `rest-over-*.wav`), like Strong. Notification sounds still obey the silent switch and Focus.
-- In the app: the same files play through `expo-audio` on JS timers (`lib/rest-sound.ts`), which ignores the silent switch and mixes over music. The foreground notification is silent and bannerless so nothing doubles.
+- A tick at each full minute of rest (anchored to the start, so ±15s doesn't move them; none in the last 10s), then a ding-ding and a voice saying "Rest is over". Jarvis (default) and Elle are both bundled (`rest-over-jarvis.wav` / `rest-over-elle.wav`, generated once with Threepio's `/v1/tts`; nothing calls Threepio at runtime). Settings → Rest voice picks one (`@rest_voice`) and previews it; changing it mid-rest reschedules the notification.
+- Standard local notifications only, like Strong: the sounds are bundled with the `expo-notifications` `sounds` option, and the same notifications play them locked or open (in the foreground: sound, no banner, a haptic at the end). The silent switch mutes them, which is fine. An `expo-audio` version that played through silent mode was tried and dropped as unneeded.
 - Rest notifications carry `data.kind = 'rest'`; every reschedule cancels pending ones and dismisses delivered ones, also after a relaunch.
-- Settings → Tools has "Test rest sound".
-- `expo-audio` and the bundled sounds are native changes, so `version` is 1.2.0: run `npm run release:ios:full` on the Mac before any further OTA.
+- The sounds themselves are placeholders until a pick from the previews (ticks T0–T6, end chimes E0–E6, made by a small synth script).
+- Bundled sounds are a native change, so `version` is 1.2.0: run `npm run release:ios:full` on the Mac before any further OTA.
+
+### Next: Live Activity on the lock screen (needs the Mac)
+- While a workout runs: a Live Activity on the lock screen and Dynamic Island with the rest countdown, what's up next (exercise, set, weight × reps), and quick actions (e.g. ✓ the current set, +15s, Skip rest).
+- The countdown can be drawn by iOS itself from `endsAt` (a timer text), so it ticks without the app running.
+- Needs a widget extension written in Swift (ActivityKit / WidgetKit), added to the Expo project through a config plugin. Pick one when starting (e.g. `expo-apple-targets`, or a ready-made Live Activity module) and check it works with the personal team. Starting and updating the activity locally needs no push entitlement.
+- Quick actions are App Intents (iOS 17+). Open questions: how a button's change gets to the app's state while the JS isn't running (an App Group store the app reads on resume, or an intent that runs in the app's process), and how up next stays right after a set is checked from the lock screen.
+- Code can be written on chewy, but building, signing and installing the extension need Xcode on the Mac. Do it as its own native build; ideally it replaces the per-minute tick notifications cluttering the lock screen.
 
 ### Later
 - Port 5/3/1+ onto `ProgramModule`.

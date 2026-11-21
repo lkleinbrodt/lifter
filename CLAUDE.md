@@ -108,7 +108,7 @@ lib/                      # Core business logic
   workout-actions.ts      # Workout lifecycle against storage: start, finish (+ progression), reopen, discard, delete
   workout-names.ts        # Display names from templates ("B · Horizontal + Deadlift"), imports matched by main lifts
   session-store.ts        # App-wide active workout + rest timer (useSession), local rest notifications
-  rest-sound.ts           # Rest sounds (minute tick, "Rest is over" per voice) via expo-audio; voice setting
+  rest-sound.ts           # Rest voice setting ("Rest is over" clip per voice) + preview
 hooks/                    # Custom React hooks (color scheme, theme color)
 constants/
   theme.ts                # Design system: colors, fonts, layout, shadows

@@ -55,13 +55,6 @@
             "./assets/sounds/rest-over-elle.wav"
           ]
         }
-      ],
-      [
-        "expo-audio",
-        {
-          "microphonePermission": false,
-          "recordAudioAndroid": false
-        }
       ]
     ],
     "experiments": {

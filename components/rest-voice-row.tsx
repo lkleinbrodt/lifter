@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 import React, { useEffect, useState } from 'react';
-import { REST_VOICES, type RestVoice, loadRestVoice, playRestOver, saveRestVoice } from '@/lib/rest-sound';
+import { REST_VOICES, type RestVoice, loadRestVoice, previewRestVoice, saveRestVoice } from '@/lib/rest-sound';
 
 import { Chip, ListRow } from '@/components/ui/primitives';
 import { Radius } from '@/constants/theme';
@@ -16,7 +16,7 @@ export function RestVoiceRow() {
 
   const pick = async (next: RestVoice) => {
     setVoice(next);
-    playRestOver(next);
+    void previewRestVoice(next);
     await saveRestVoice(next);
     refreshRestNotifications();
   };
