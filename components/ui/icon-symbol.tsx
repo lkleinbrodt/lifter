@@ -43,6 +43,8 @@ const MAPPING = {
   'magnifyingglass': 'search',
   'clock.arrow.circlepath': 'history',
   'gearshape': 'settings',
+  'star.fill': 'star',
+  'flame.fill': 'local-fire-department',
 } as IconMapping;
 
 /**

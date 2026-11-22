@@ -309,6 +309,30 @@ export async function countWorkouts(): Promise<number> {
   return row?.n ?? 0;
 }
 
+/** started_at of every finished workout, for the summary's workout number and week streak. */
+export async function finishedStartTimes(): Promise<string[]> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<{ started_at: string }>('SELECT started_at FROM workouts WHERE finished_at IS NOT NULL');
+  return rows.map((row) => row.started_at);
+}
+
+/** Every done set of these exercises from finished workouts that started before `before`, by exerciseId. */
+export async function setsBefore(exerciseIds: string[], before: string): Promise<Record<string, WorkoutSet[]>> {
+  if (exerciseIds.length === 0) return {};
+  const db = await getDb();
+  const rows = await db.getAllAsync<SetRow & { exercise_id: string }>(
+    `SELECT s.*, e.exercise_id FROM sets s
+     JOIN workout_exercises e ON e.id = s.workout_exercise_id
+     JOIN workouts w ON w.id = e.workout_id
+     WHERE w.finished_at IS NOT NULL AND w.started_at < ? AND e.exercise_id IN (${exerciseIds.map(() => '?').join(',')})`,
+    before,
+    ...exerciseIds,
+  );
+  const out: Record<string, WorkoutSet[]> = {};
+  for (const row of rows) (out[row.exercise_id] ??= []).push(toSet(row));
+  return out;
+}
+
 /** Row counts and schema version, for the diagnostics page. */
 export async function dbStats() {
   const db = await getDb();

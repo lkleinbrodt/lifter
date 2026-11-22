@@ -55,6 +55,7 @@ Full walkthrough in `MOBILE.md`. Same workflow as the `artoo` app in `~/Projects
   2. `tar -xf ios/Pods/ReactNativeCore-artifacts/reactnative-core-<rn>-release.tar.gz -C ios/Pods/React-Core-prebuilt`
   3. `printf Release > ios/Pods/React-Core-prebuilt/.last_build_configuration`
 - Building with `-destination 'generic/platform=iOS'` avoids needing the phone unlocked during the build. Then install with `xcrun devicectl device install app`.
+- **Live Activity** (`targets/LifterWidget`, `modules/live-activity`, `lib/live-activity.ts`): any Swift change there is native and needs a new build. The attributes struct exists twice (the `_shared` file and the module) and both copies must match. Files added to `_shared/` need a fresh prebuild. Details in `docs/lifter-2-plan.md`.
 - Header buttons on iOS 26: render plain text in `headerRight` (no background). iOS wraps header items in its own glass capsule, so a filled pill shows a double ring. `unstable_headerRightItems` (native bar items) silently broke navigation to the screen on this build; don't use it.
 
 ## Analytics (server + web, on chewy)
@@ -93,6 +94,7 @@ app/                      # Screens (Expo Router file-based routing)
   import-strong.tsx       # One-off Strong CSV import + GSLP weight check (opened from Settings)
   settings.tsx            # /settings: the dev sections on their own page (5/3/1 gear, deep links)
   workout/[id].tsx        # Active workout (Strong-style set table) and finished-workout summary
+                          #   (`?celebrate=1` replays the finish celebration without finishing anything)
   531/                    # 5/3/1 side
     _layout.tsx           # Stack: (tabs) + workout detail
     (tabs)/               # Tabs: Maxes, Workouts, Exercises
@@ -105,7 +107,8 @@ components/               # Reusable React components
   ui/action-menu.tsx      # Anchored ⋯ menu (replaces the system action sheet)
   ui/primitives.tsx       # Pill, Chip, Stat, ListRow, SectionHeader
   workout/                # Workout screen pieces: exercise card, set row, plate diagram, superset group, picker,
-                          #   history sheet, rest bar, minibar (active-workout-bar), summary, next-up helper
+                          #   history sheet, rest bar, minibar (active-workout-bar), summary, next-up helper,
+                          #   celebration (confetti/medallion/count-up/pop-in), finish-time sheet
   workout-history.tsx     # History tab: compact cards grouped by week
   gslp-weights.tsx        # GSLP weights section of the Settings tab
   dev-settings.tsx        # Dev sections (update, diagnostics, tools), on the Settings tab and /settings
@@ -133,10 +136,15 @@ lib/                      # Core business logic
   gslp-program.ts         # GSLP's ProgramModule
   strong-import.ts        # Strong CSV export → Workouts (pure)
   workout-edit.ts         # Pure edits on a Workout (sets, swap, finalize, stats, Previous-column matching)
+  workout-wins.ts         # Summary celebration data: personal records, workout number, week streak (pure)
   workout-actions.ts      # Workout lifecycle against storage: start, finish (+ progression), reopen, discard, delete
   workout-names.ts        # Display names from templates ("B · Horizontal + Deadlift"), imports matched by main lifts
   session-store.ts        # App-wide active workout + rest timer (useSession), local rest notifications
   analytics-sync.ts       # Pushes finished Lifter workouts to the analytics server
+  live-activity.ts        # Syncs the lock-screen Live Activity from the session store; applies its button actions
+modules/live-activity/    # Local Expo module (Swift): start/update/end the Live Activity, queued button actions
+targets/LifterWidget/     # Widget extension (SwiftUI) for the Live Activity, via @bacons/apple-targets
+  _shared/                # Compiled into the app too: activity attributes + App Intents (✓ set, +15, skip)
   rest-sound.ts           # Rest voice setting ("Rest is over" clip per voice) + preview
 hooks/                    # Custom React hooks (color scheme, theme color)
 constants/

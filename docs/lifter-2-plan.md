@@ -2,7 +2,7 @@
 
 Turn Lifter from "tells me what to do" into the app I use *during* the workout, replacing Strong. Strong's common tracking features plus Lifter's program logic: the workout opens with today's prescribed numbers already filled in.
 
-Status (2026-11-21): Phases 1–4 are on `main` and on the phone (1.1.0 + OTA). Rest timer sounds are in PR #12 (1.2.0, native build). Next up: the lock-screen Live Activity.
+Status (2026-11-21): Phases 1–4 and rest timer sounds are on `main`. The lock-screen Live Activity is built on `lifter-2/live-activity` (1.3.0, native build).
 
 ## Principles
 
@@ -237,12 +237,18 @@ Each phase is its own branch and PR.
 - Sounds picked from previews on 2026-11-21: glass ping tick, the original two-tone ding-ding before the voice.
 - Bundled sounds are a native change, so `version` is 1.2.0: run `npm run release:ios:full` on the Mac before any further OTA.
 
-### Next: Live Activity on the lock screen (needs the Mac)
-- While a workout runs: a Live Activity on the lock screen and Dynamic Island with the rest countdown, what's up next (exercise, set, weight × reps), and quick actions (e.g. ✓ the current set, +15s, Skip rest).
-- The countdown can be drawn by iOS itself from `endsAt` (a timer text), so it ticks without the app running.
-- Needs a widget extension written in Swift (ActivityKit / WidgetKit), added to the Expo project through a config plugin. Pick one when starting (e.g. `expo-apple-targets`, or a ready-made Live Activity module) and check it works with the personal team. Starting and updating the activity locally needs no push entitlement.
-- Quick actions are App Intents (iOS 17+). Open questions: how a button's change gets to the app's state while the JS isn't running (an App Group store the app reads on resume, or an intent that runs in the app's process), and how up next stays right after a set is checked from the lock screen.
-- Code can be written on chewy, but building, signing and installing the extension need Xcode on the Mac. Do it as its own native build; ideally it replaces the per-minute tick notifications cluttering the lock screen.
+### Live Activity on the lock screen (1.3.0, needs a native build)
+- While a workout runs, a Live Activity on the lock screen and in the Dynamic Island shows the rest countdown (with a draining bar), the next set (exercise, set, weight × reps) and the done/total count. When the rest is over (or skipped), the countdown becomes a running stopwatch since the last checked set; before the first set it shows the workout's elapsed time. All of these are iOS timer texts, so they tick without the app. The activity's stale date is the rest's end, so the switch happens even while the app is suspended.
+- Buttons: ✓ the next set, +15 and Skip while resting. There's no ✓ on an AMRAP set (reps need typing) or on a set with no numbers. Tapping anywhere else opens the app.
+- Pieces:
+  - `targets/LifterWidget/`: the widget extension (SwiftUI), generated into `ios/` by `@bacons/apple-targets`. iOS 17+, since the buttons are App Intents.
+  - `targets/LifterWidget/_shared/LifterActivityShared.swift`: the activity's data and its three `LiveActivityIntent`s, compiled into both the app and the extension.
+  - `modules/live-activity/`: a local Expo module that starts, updates and ends the activity and hands JS the queued button actions. It keeps a copy of the attributes struct, because ActivityKit matches by type name and the pod can't see the app target. Keep the two copies in sync.
+  - `lib/live-activity.ts`: syncs the activity from the session store (active workout + rest), and applies button actions.
+- How a button reaches the app: a `LiveActivityIntent` runs in the app's process (iOS launches the app in the background if needed). `perform()` updates the activity at once and queues the action in `UserDefaults`, then posts a notification. The module relays that to JS, which applies the queue (check the set, start or adjust the rest, reschedule the rest notifications) and pushes a fresh state. JS also drains the queue on launch and on resume. No App Group needed.
+- Up next after a lock-screen ✓: the app precomputes what follows the next set and the rest it would start (`afterCheck`, `afterCheckRestSec`), so the activity shows the right thing before JS catches up.
+- A lock-screen ✓ logs the set like the in-app check: empty fields take the target, else last time's numbers. If the workout screen is open, the edit goes through its `apply` so its pending save doesn't overwrite it.
+- Not done: the per-minute tick notifications still show on the lock screen alongside the activity.
 
 ### Later
 - Port 5/3/1+ onto `ProgramModule`.

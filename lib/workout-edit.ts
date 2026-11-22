@@ -83,6 +83,23 @@ export function setHasValues(set: WorkoutSet, tracking: TrackingType) {
   }
 }
 
+/**
+ * A set as checking it would log it: empty fields adopt the target, else last time's number
+ * (weight 0 = bodyweight for added/assisted lifts). Check `setHasValues` on the result.
+ */
+export function filledForCheck(set: WorkoutSet, tracking: TrackingType, previous?: WorkoutSet): WorkoutSet {
+  const hasWeight = tracking === 'weightReps' || tracking === 'addedWeightReps' || tracking === 'assistedReps';
+  const isDuration = tracking === 'duration';
+  const weightHint = set.target?.weight ?? previous?.weight;
+  const repsHint = set.target?.reps ?? previous?.reps;
+  return {
+    ...set,
+    weight: set.weight ?? (hasWeight ? (weightHint ?? (tracking === 'weightReps' ? undefined : 0)) : undefined),
+    reps: set.reps ?? (isDuration ? undefined : repsHint),
+    durationSec: set.durationSec ?? (isDuration ? previous?.durationSec : undefined),
+  };
+}
+
 export function hasDoneSets(exercise: WorkoutExercise) {
   return exercise.sets.some((set) => set.done);
 }
@@ -113,6 +130,41 @@ export function finalizeWorkout(workout: Workout, unfinished: 'complete' | 'disc
     })
     .filter((exercise) => exercise.sets.length > 0);
   return { ...workout, exercises, finishedAt: at };
+}
+
+/** When the last set was checked off, if any set records it. */
+export function lastSetAt(workout: Workout): Date | undefined {
+  let last: number | undefined;
+  for (const exercise of workout.exercises) {
+    for (const set of exercise.sets) {
+      if (!set.done || !set.completedAt) continue;
+      const time = new Date(set.completedAt).getTime();
+      if (last === undefined || time > last) last = time;
+    }
+  }
+  return last === undefined ? undefined : new Date(last);
+}
+
+/** A finish more than this long after the last set probably means Finish was tapped late. */
+export const LATE_FINISH_SEC = 20 * 60;
+
+/** The earliest a workout can say it finished: its last set, else its start. */
+export function earliestFinish(workout: Workout): Date {
+  return lastSetAt(workout) ?? new Date(workout.startedAt);
+}
+
+/** The last set's time, when Finish came long after it (forgot to tap Finish). */
+export function lateFinishSuggestion(workout: Workout): Date | undefined {
+  const last = lastSetAt(workout);
+  if (!workout.finishedAt || !last) return undefined;
+  const gapSec = (new Date(workout.finishedAt).getTime() - last.getTime()) / 1000;
+  return gapSec > LATE_FINISH_SEC ? last : undefined;
+}
+
+/** Moves a finished workout's end time, never before its last set (or its start). */
+export function setFinishedAt(workout: Workout, at: Date): Workout {
+  const earliest = earliestFinish(workout);
+  return { ...workout, finishedAt: new Date(Math.max(at.getTime(), earliest.getTime())).toISOString() };
 }
 
 export type WorkoutStats = { durationSec: number; sets: number; volume: number };

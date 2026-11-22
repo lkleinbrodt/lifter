@@ -2,7 +2,7 @@
   "expo": {
     "name": "lifter",
     "slug": "lifter",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "lifter",
@@ -12,7 +12,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.lkleinbrodt.lifter",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSSupportsLiveActivities": true
       },
       "appleTeamId": "DU26G2LJFP"
     },
@@ -59,7 +60,8 @@
             "./assets/sounds/rest-over-elle.wav"
           ]
         }
-      ]
+      ],
+      "@bacons/apple-targets"
     ],
     "experiments": {
       "typedRoutes": true,

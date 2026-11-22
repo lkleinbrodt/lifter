@@ -37,7 +37,8 @@ import {
 import { deleteFinishedWorkout, discardWorkout, finishWorkout, lastSetsFor, reopenGslpWorkout } from '@/lib/workout-actions';
 import { RestBar } from '@/components/workout/rest-bar';
 import { restSecFor, getExercise, splitExerciseName } from '@/lib/exercises';
-import { setActiveWorkout, startRest, summarizeActive } from '@/lib/session-store';
+import { setActiveWorkout, startRest } from '@/lib/session-store';
+import { registerWorkoutEditor } from '@/lib/live-activity';
 import { getWorkout, saveWorkout } from '@/lib/db';
 import { gslpOptionalSlots, gslpSlotChoices, gslpSlotLabel } from '@/lib/gslp-program';
 
@@ -76,7 +77,8 @@ type PickerMode = { kind: 'add' } | { kind: 'replace'; entryId: string } | null;
 const isGslp = (workout: Workout) => workout.source.kind === 'program' && workout.source.program === 'gslp';
 
 export default function WorkoutScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // `?celebrate=1` replays the finish celebration on a finished workout (dev deep link).
+  const { id, celebrate: celebrateParam } = useLocalSearchParams<{ id: string; celebrate?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -88,6 +90,7 @@ export default function WorkoutScreen() {
   const [historyId, setHistoryId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false); // editing a finished workout
+  const [celebrate, setCelebrate] = useState(celebrateParam === '1'); // just finished: play the summary's celebration
   const editingRef = useRef(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const notesRef = useRef<TextInput>(null);
@@ -115,7 +118,7 @@ export default function WorkoutScreen() {
     const next = fn(current);
     workoutRef.current = next;
     setWorkout(next);
-    if (!next.finishedAt) setActiveWorkout(summarizeActive(next)); // keeps the minibar's set count live
+    if (!next.finishedAt) setActiveWorkout(next); // keeps the minibar's set count (and the Live Activity) live
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       saveTimer.current = null;
@@ -136,6 +139,10 @@ export default function WorkoutScreen() {
       active = false;
     };
   }, [id]);
+
+  // A ✓ from the lock screen edits through `apply` while this screen shows the active workout.
+  const liveId = workout && !workout.finishedAt ? workout.id : null;
+  useEffect(() => (liveId ? registerWorkoutEditor(liveId, apply) : undefined), [liveId, apply]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (status) => status !== 'active' && flush());
@@ -266,6 +273,7 @@ export default function WorkoutScreen() {
         workoutRef.current = result.workout;
         setWorkout(result.workout);
         setGslp(await loadGslpState());
+        setCelebrate(true);
         scrollRef.current?.scrollTo({ y: 0, animated: false });
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } finally {
@@ -325,6 +333,7 @@ export default function WorkoutScreen() {
     ]);
 
   const startEditing = () => {
+    setCelebrate(false); // coming back from edit mode shouldn't replay it
     editingRef.current = true;
     setEditing(true);
   };
@@ -506,7 +515,16 @@ export default function WorkoutScreen() {
           </View>
 
           {finished && !editing ? (
-            <WorkoutSummary workout={workout} log={gslp.history.find((log) => log.workoutId === workout.id)} />
+            <WorkoutSummary
+              workout={workout}
+              log={gslp.history.find((log) => log.workoutId === workout.id)}
+              celebrate={celebrate}
+              onChange={(next) => {
+                workoutRef.current = next;
+                setWorkout(next);
+                persist(next);
+              }}
+            />
           ) : null}
           {editing ? (
             <View style={styles.editBanner}>

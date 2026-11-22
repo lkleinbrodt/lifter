@@ -10,6 +10,7 @@ import { StatusBar } from 'expo-status-bar';
 import { detailHeaderOptions } from '@/constants/navigation';
 import { refreshActiveWorkout, restoreRest } from '@/lib/session-store';
 import { syncSoon } from '@/lib/analytics-sync';
+import { startLiveActivity } from '@/lib/live-activity';
 import { useEffect } from 'react';
 
 export const unstable_settings = {
@@ -26,8 +27,7 @@ const navTheme: Theme = {
 
 export default function RootLayout() {
   useEffect(() => {
-    void refreshActiveWorkout();
-    void restoreRest();
+    void Promise.all([refreshActiveWorkout(), restoreRest()]).finally(startLiveActivity);
     // Catch the analytics server up on launch and whenever the app comes back (e.g. Tailscale was off).
     syncSoon();
     const sub = AppState.addEventListener('change', (state) => state === 'active' && syncSoon());

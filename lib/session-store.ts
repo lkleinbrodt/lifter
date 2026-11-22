@@ -41,9 +41,14 @@ function set(patch: Partial<Snapshot>) {
   listeners.forEach((listener) => listener());
 }
 
-function subscribe(listener: () => void) {
+export function subscribe(listener: () => void) {
   listeners.add(listener);
   return () => listeners.delete(listener);
+}
+
+/** The current snapshot, outside React. */
+export function getSession() {
+  return snapshot;
 }
 
 export function useSession() {
@@ -52,13 +57,23 @@ export function useSession() {
 
 // ---- Active workout ----
 
-export function setActiveWorkout(active: ActiveSummary | null) {
-  set({ active });
-  if (!active) void skipRest();
+// The full active workout, for things that need more than the summary (the Live Activity).
+// Not part of the snapshot: screens re-render from `active`.
+let activeWorkout: Workout | null = null;
+
+export function getActiveWorkoutCached() {
+  return activeWorkout;
+}
+
+export function setActiveWorkout(workout: Workout | null) {
+  activeWorkout = workout;
+  set({ active: workout ? summarizeActive(workout) : null });
+  if (!workout) void skipRest();
 }
 
 export async function refreshActiveWorkout() {
   const workout = await getActiveWorkout();
+  activeWorkout = workout;
   set({ active: workout ? summarizeActive(workout) : null });
 }
 
