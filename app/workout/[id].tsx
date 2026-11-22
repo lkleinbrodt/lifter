@@ -58,15 +58,18 @@ import { workoutDisplayName } from '@/lib/workout-names';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { ActionMenu, type MenuAnchor, type MenuState, measureAnchor } from '@/components/ui/action-menu';
 import { loadGslpState } from '@/lib/gslp-storage';
+import { syncSoon } from '@/lib/analytics-sync';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const SAVE_DELAY_MS = 400;
 
 function persist(workout: Workout) {
-  saveWorkout(workout).catch((error) => {
-    console.error('Saving workout failed', error);
-    Alert.alert('Save failed', error instanceof Error ? error.message : String(error));
-  });
+  saveWorkout(workout)
+    .then(() => workout.finishedAt && syncSoon()) // edits to a finished workout reach analytics
+    .catch((error) => {
+      console.error('Saving workout failed', error);
+      Alert.alert('Save failed', error instanceof Error ? error.message : String(error));
+    });
 }
 
 type PickerMode = { kind: 'add' } | { kind: 'replace'; entryId: string } | null;

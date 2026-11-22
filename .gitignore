@@ -49,3 +49,8 @@ strong*.csv
 *.MP4
 *.mov
 *.MOV
+
+# analytics (server/web have their own node_modules; web builds to web/dist)
+server/node_modules/
+web/node_modules/
+web/dist/

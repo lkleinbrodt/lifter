@@ -58,6 +58,32 @@ Full walkthrough in `MOBILE.md`. Same workflow as the `artoo` app in `~/Projects
 - **Live Activity** (`targets/LifterWidget`, `modules/live-activity`, `lib/live-activity.ts`): any Swift change there is native and needs a new build. The attributes struct exists twice (the `_shared` file and the module) and both copies must match. Files added to `_shared/` need a fresh prebuild. Details in `docs/lifter-2-plan.md`.
 - Header buttons on iOS 26: render plain text in `headerRight` (no background). iOS wraps header items in its own glass capsule, so a filled pill shows a double ring. `unstable_headerRightItems` (native bar items) silently broke navigation to the screen on this build; don't use it.
 
+## Analytics (server + web, on chewy)
+
+`server/` (Hono + better-sqlite3, run with tsx) and `web/` (React + Vite, hand-drawn SVG charts) are a
+separate analytics app with their own `package.json`s, excluded from the app's tsconfig and lint.
+Wiki page: `~/wiki/projects/lifter.md`.
+
+- **Live at** `https://chewy.tail77f3eb.ts.net:8449` (tailnet only, no auth). User unit `lifter-analytics`
+  serves the API and `web/dist` on 127.0.0.1:8095, **from this checkout**: after changes run
+  `cd web && npm run build` and/or `systemctl --user restart lifter-analytics`.
+- **DB:** `~/srv/lifter-analytics/lifter.db` (override with `LIFTER_DB`). Each workout row has an
+  `origin`: `app` (synced from the phone) or `strong` / `notes` / `snapshot` (history the server imports
+  from `~/srv/lifter-analytics/history/`: `cd server && npm run import`, or
+  `npm run import -- strong path/to/export.csv` for a fresh Strong export). Imports reuse
+  `lib/exercises.ts` (Strong name mapping) and `lib/strong-import.ts`'s CSV parser; names the catalog
+  doesn't know are kept as `x-<slug>` ids.
+- **Sync** (`lib/analytics-sync.ts`): the app POSTs every finished workout it logged itself (never its own
+  Strong imports) to `/api/sync` on finish, delete, reopen, edits to a finished workout, launch and
+  foreground. The server replaces all `app` rows with that list, so the phone is the source of truth for
+  them. A sync that would delete more than 2 server workouts gets a 409; Settings → Analytics offers
+  "Force sync". The last 50 payloads are kept in the `sync_log` table.
+- **Analytics rules** (`server/src/analytics.ts`): e1RM is Epley on working sets of 1–12 reps; pull-ups
+  and dips use bodyweight (165 lb, `LIFTER_BW`) ± the added/assisted weight. Imports never flagged
+  warmups, so in imported entries sets under 75% of the top set count as warmups. Server dates are
+  bucketed in America/Los_Angeles (chewy runs UTC).
+- **Dev:** `cd server && PORT=18095 LIFTER_DB=/tmp/x.db npm run dev`, then `cd web && API_PORT=18095 npm run dev`.
+
 ## Project Structure
 
 ```
@@ -93,6 +119,8 @@ components/               # Reusable React components
   themed-view.tsx         # Themed container
   safe-area.tsx           # Safe area wrapper
   haptic-tab.tsx          # Tab button with haptic feedback
+server/                   # Analytics API (Hono + SQLite) on chewy; see "Analytics"
+web/                      # Analytics dashboard (React + Vite), built to web/dist and served by server/
 lib/                      # Core business logic
   programs.ts             # Program registry + active-program persistence
   plates.ts               # Shared rounding and plate math (includes 1.25 lb microplates)
@@ -112,6 +140,7 @@ lib/                      # Core business logic
   workout-actions.ts      # Workout lifecycle against storage: start, finish (+ progression), reopen, discard, delete
   workout-names.ts        # Display names from templates ("B · Horizontal + Deadlift"), imports matched by main lifts
   session-store.ts        # App-wide active workout + rest timer (useSession), local rest notifications
+  analytics-sync.ts       # Pushes finished Lifter workouts to the analytics server
   live-activity.ts        # Syncs the lock-screen Live Activity from the session store; applies its button actions
 modules/live-activity/    # Local Expo module (Swift): start/update/end the Live Activity, queued button actions
 targets/LifterWidget/     # Widget extension (SwiftUI) for the Live Activity, via @bacons/apple-targets
@@ -154,6 +183,7 @@ GSLP keys:
 - The in-progress workout lives in SQLite (the one `workouts` row with no `finished_at`), saved on every edit.
 - `@rest_timer` — the running rest timer (`endsAt`, `durationSec`), so it survives a relaunch
 - `@rest_voice` — `'jarvis' | 'elle'`, which voice says "Rest is over" (Settings → Rest voice)
+- `@analytics_sync` — last analytics sync result (`at`, `ok`, `message`), shown in Settings → Analytics
 
 ### GSLP Program Logic (`lib/gslp.ts`)
 - **Rotation**: strict A/B alternation (A/B/A, then B/A/B). The next workout is the opposite of the last logged one. Week/day come from the session index (3 per week).
