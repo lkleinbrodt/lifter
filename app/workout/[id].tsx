@@ -37,7 +37,8 @@ import {
 import { deleteFinishedWorkout, discardWorkout, finishWorkout, lastSetsFor, reopenGslpWorkout } from '@/lib/workout-actions';
 import { RestBar } from '@/components/workout/rest-bar';
 import { restSecFor, getExercise, splitExerciseName } from '@/lib/exercises';
-import { setActiveWorkout, startRest, summarizeActive } from '@/lib/session-store';
+import { setActiveWorkout, startRest } from '@/lib/session-store';
+import { registerWorkoutEditor } from '@/lib/live-activity';
 import { getWorkout, saveWorkout } from '@/lib/db';
 import { gslpOptionalSlots, gslpSlotChoices, gslpSlotLabel } from '@/lib/gslp-program';
 
@@ -112,7 +113,7 @@ export default function WorkoutScreen() {
     const next = fn(current);
     workoutRef.current = next;
     setWorkout(next);
-    if (!next.finishedAt) setActiveWorkout(summarizeActive(next)); // keeps the minibar's set count live
+    if (!next.finishedAt) setActiveWorkout(next); // keeps the minibar's set count (and the Live Activity) live
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       saveTimer.current = null;
@@ -133,6 +134,10 @@ export default function WorkoutScreen() {
       active = false;
     };
   }, [id]);
+
+  // A ✓ from the lock screen edits through `apply` while this screen shows the active workout.
+  const liveId = workout && !workout.finishedAt ? workout.id : null;
+  useEffect(() => (liveId ? registerWorkoutEditor(liveId, apply) : undefined), [liveId, apply]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (status) => status !== 'active' && flush());

@@ -9,6 +9,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { detailHeaderOptions } from '@/constants/navigation';
 import { refreshActiveWorkout, restoreRest } from '@/lib/session-store';
+import { startLiveActivity } from '@/lib/live-activity';
 import { useEffect } from 'react';
 
 export const unstable_settings = {
@@ -25,8 +26,7 @@ const navTheme: Theme = {
 
 export default function RootLayout() {
   useEffect(() => {
-    void refreshActiveWorkout();
-    void restoreRest();
+    void Promise.all([refreshActiveWorkout(), restoreRest()]).finally(startLiveActivity);
   }, []);
 
   return (

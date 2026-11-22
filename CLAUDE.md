@@ -55,6 +55,7 @@ Full walkthrough in `MOBILE.md`. Same workflow as the `artoo` app in `~/Projects
   2. `tar -xf ios/Pods/ReactNativeCore-artifacts/reactnative-core-<rn>-release.tar.gz -C ios/Pods/React-Core-prebuilt`
   3. `printf Release > ios/Pods/React-Core-prebuilt/.last_build_configuration`
 - Building with `-destination 'generic/platform=iOS'` avoids needing the phone unlocked during the build. Then install with `xcrun devicectl device install app`.
+- **Live Activity** (`targets/LifterWidget`, `modules/live-activity`, `lib/live-activity.ts`): any Swift change there is native and needs a new build. The attributes struct exists twice (the `_shared` file and the module) and both copies must match. Files added to `_shared/` need a fresh prebuild. Details in `docs/lifter-2-plan.md`.
 - Header buttons on iOS 26: render plain text in `headerRight` (no background). iOS wraps header items in its own glass capsule, so a filled pill shows a double ring. `unstable_headerRightItems` (native bar items) silently broke navigation to the screen on this build; don't use it.
 
 ## Project Structure
@@ -108,6 +109,10 @@ lib/                      # Core business logic
   workout-actions.ts      # Workout lifecycle against storage: start, finish (+ progression), reopen, discard, delete
   workout-names.ts        # Display names from templates ("B · Horizontal + Deadlift"), imports matched by main lifts
   session-store.ts        # App-wide active workout + rest timer (useSession), local rest notifications
+  live-activity.ts        # Syncs the lock-screen Live Activity from the session store; applies its button actions
+modules/live-activity/    # Local Expo module (Swift): start/update/end the Live Activity, queued button actions
+targets/LifterWidget/     # Widget extension (SwiftUI) for the Live Activity, via @bacons/apple-targets
+  _shared/                # Compiled into the app too: activity attributes + App Intents (✓ set, +15, skip)
   rest-sound.ts           # Rest voice setting ("Rest is over" clip per voice) + preview
 hooks/                    # Custom React hooks (color scheme, theme color)
 constants/

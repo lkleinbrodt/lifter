@@ -11,7 +11,7 @@ import { ThemedText } from '@/components/themed-text';
 import { type TrackingType, formatLoad } from '@/lib/exercises';
 import type { WorkoutSet } from '@/lib/workout';
 import { formatPlatesCompact } from '@/lib/plates';
-import { amrapBadge, setHasValues } from '@/lib/workout-edit';
+import { amrapBadge, filledForCheck, setHasValues } from '@/lib/workout-edit';
 
 export type SetPatch = Partial<Pick<WorkoutSet, 'weight' | 'reps' | 'durationSec' | 'done' | 'completedAt'>>;
 
@@ -145,12 +145,7 @@ export function SetRow({ label, set, previous, tracking, current, plates, separa
       onChange({ done: false, completedAt: undefined });
       return;
     }
-    const filled: WorkoutSet = {
-      ...set,
-      weight: set.weight ?? (hasWeight ? (weightHint ?? (tracking === 'weightReps' ? undefined : 0)) : undefined),
-      reps: set.reps ?? (isDuration ? undefined : repsHint),
-      durationSec: set.durationSec ?? (isDuration ? previous?.durationSec : undefined),
-    };
+    const filled = filledForCheck(set, tracking, previous);
     if (!setHasValues(filled, tracking)) {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;

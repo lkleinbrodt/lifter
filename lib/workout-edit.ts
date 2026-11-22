@@ -83,6 +83,23 @@ export function setHasValues(set: WorkoutSet, tracking: TrackingType) {
   }
 }
 
+/**
+ * A set as checking it would log it: empty fields adopt the target, else last time's number
+ * (weight 0 = bodyweight for added/assisted lifts). Check `setHasValues` on the result.
+ */
+export function filledForCheck(set: WorkoutSet, tracking: TrackingType, previous?: WorkoutSet): WorkoutSet {
+  const hasWeight = tracking === 'weightReps' || tracking === 'addedWeightReps' || tracking === 'assistedReps';
+  const isDuration = tracking === 'duration';
+  const weightHint = set.target?.weight ?? previous?.weight;
+  const repsHint = set.target?.reps ?? previous?.reps;
+  return {
+    ...set,
+    weight: set.weight ?? (hasWeight ? (weightHint ?? (tracking === 'weightReps' ? undefined : 0)) : undefined),
+    reps: set.reps ?? (isDuration ? undefined : repsHint),
+    durationSec: set.durationSec ?? (isDuration ? previous?.durationSec : undefined),
+  };
+}
+
 export function hasDoneSets(exercise: WorkoutExercise) {
   return exercise.sets.some((set) => set.done);
 }

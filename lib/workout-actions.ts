@@ -8,9 +8,7 @@ import { loadGslpState, saveGslpState } from './gslp-storage';
 import type { ProgressionLine } from './program-module';
 import { type Workout, type WorkoutSet, isWorkingSet, newId } from './workout';
 import { finalizeWorkout } from './workout-edit';
-import { setActiveWorkout, summarizeActive } from './session-store';
-
-const summaryOf = summarizeActive;
+import { setActiveWorkout } from './session-store';
 
 /** Sets from the latest finished session of an exercise (before `before`, if given). */
 export async function lastSetsFor(exerciseId: string, before?: string): Promise<WorkoutSet[]> {
@@ -24,7 +22,7 @@ export async function startGslpWorkout(template?: string): Promise<Workout> {
     lastSets: (id) => lastSetsFor(id),
   });
   await saveWorkout(workout);
-  setActiveWorkout(summaryOf(workout));
+  setActiveWorkout(workout);
   return workout;
 }
 
@@ -37,7 +35,7 @@ export async function startEmptyWorkout(): Promise<Workout> {
     exercises: [],
   };
   await saveWorkout(workout);
-  setActiveWorkout(summaryOf(workout));
+  setActiveWorkout(workout);
   return workout;
 }
 
@@ -74,7 +72,7 @@ export async function reopenGslpWorkout(workoutId: string): Promise<Workout | nu
   if (!workout) return null;
   const reopened = { ...workout, finishedAt: undefined };
   await saveWorkout(reopened);
-  setActiveWorkout(summaryOf(reopened));
+  setActiveWorkout(reopened);
   return reopened;
 }
 
