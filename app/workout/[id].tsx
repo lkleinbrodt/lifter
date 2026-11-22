@@ -73,7 +73,8 @@ type PickerMode = { kind: 'add' } | { kind: 'replace'; entryId: string } | null;
 const isGslp = (workout: Workout) => workout.source.kind === 'program' && workout.source.program === 'gslp';
 
 export default function WorkoutScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // `?celebrate=1` replays the finish celebration on a finished workout (dev deep link).
+  const { id, celebrate: celebrateParam } = useLocalSearchParams<{ id: string; celebrate?: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -85,6 +86,7 @@ export default function WorkoutScreen() {
   const [historyId, setHistoryId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false); // editing a finished workout
+  const [celebrate, setCelebrate] = useState(celebrateParam === '1'); // just finished: play the summary's celebration
   const editingRef = useRef(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const notesRef = useRef<TextInput>(null);
@@ -263,6 +265,7 @@ export default function WorkoutScreen() {
         workoutRef.current = result.workout;
         setWorkout(result.workout);
         setGslp(await loadGslpState());
+        setCelebrate(true);
         scrollRef.current?.scrollTo({ y: 0, animated: false });
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } finally {
@@ -322,6 +325,7 @@ export default function WorkoutScreen() {
     ]);
 
   const startEditing = () => {
+    setCelebrate(false); // coming back from edit mode shouldn't replay it
     editingRef.current = true;
     setEditing(true);
   };
@@ -503,7 +507,16 @@ export default function WorkoutScreen() {
           </View>
 
           {finished && !editing ? (
-            <WorkoutSummary workout={workout} log={gslp.history.find((log) => log.workoutId === workout.id)} />
+            <WorkoutSummary
+              workout={workout}
+              log={gslp.history.find((log) => log.workoutId === workout.id)}
+              celebrate={celebrate}
+              onChange={(next) => {
+                workoutRef.current = next;
+                setWorkout(next);
+                persist(next);
+              }}
+            />
           ) : null}
           {editing ? (
             <View style={styles.editBanner}>
