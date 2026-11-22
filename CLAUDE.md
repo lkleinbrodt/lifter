@@ -80,7 +80,8 @@ Wiki page: `~/wiki/projects/lifter.md`.
   "Force sync". The last 50 payloads are kept in the `sync_log` table.
 - **Analytics rules** (`server/src/analytics.ts`): e1RM is Epley on working sets of 1–12 reps; pull-ups
   and dips use bodyweight (165 lb, `LIFTER_BW`) ± the added/assisted weight. Imports never flagged
-  warmups, so in imported entries sets under 75% of the top set count as warmups. Server dates are
+  warmups, so in imported entries sets under 75% of the top set count as warmups, but only before the
+  first heavy set (lighter sets after it are back-offs). Core and calf exercises get no e1RM. Server dates are
   bucketed in America/Los_Angeles (chewy runs UTC).
 - **Dev:** `cd server && PORT=18095 LIFTER_DB=/tmp/x.db npm run dev`, then `cd web && API_PORT=18095 npm run dev`.
 

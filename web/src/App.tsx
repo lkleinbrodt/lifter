@@ -6,8 +6,9 @@ import {
   fmtDate,
   fmtNum,
   fmtSet,
-  fmtW,
+  fmtTime,
   ORIGIN_LABEL,
+  shortName,
   useApi,
   type ExerciseDetail,
   type ExerciseRow,
@@ -88,11 +89,11 @@ function Overview() {
       .filter(({ l }) => picked.includes(l.id))
       .map(({ l, color }) => ({
         key: l.id,
-        label: l.name.replace(' (Barbell)', ''),
+        label: shortName(l.name),
         color,
         points: l.points
           .filter((p) => p.date >= from)
-          .map((p) => ({ date: p.date, v: p.e1rm, hollow: p.origin === 'snapshot' || p.origin === 'notes', label: `${fmtW(p.weight)} × ${p.reps}`, id: p.workoutId })),
+          .map((p) => ({ date: p.date, v: p.e1rm, hollow: p.origin === 'snapshot' || p.origin === 'notes', label: fmtSet(p, l.tracking), id: p.workoutId })),
       }));
   }, [data, range, picked]);
 
@@ -117,33 +118,34 @@ function Overview() {
       </div>
 
       <div className="grid tiles">
-        <Tile label="This week" value={`${data.thisWeek.workouts}`} foot={`${data.thisWeek.sets} working sets`} />
-        <Tile label="Last 4 weeks" value={`${data.last4wPerWeek}`} foot="workouts / week" />
-        <Tile label="Working sets" value={fmtNum(totals.workingSets)} foot={`${totals.exercises} exercises`} />
-        <Tile label="Tonnage" value={`${fmtNum(totals.tonnage / 1000)}k`} foot="lb, working sets" />
-        <Tile label="Time under the bar" value={`${totals.hours}h`} foot="timed sessions" />
+        <Tile label="This week" value={`${data.thisWeek.workouts}`} foot={`${data.thisWeek.workouts === 1 ? 'workout' : 'workouts'} · ${data.thisWeek.sets} sets`} />
+        <Tile label="Last 4 weeks" value={`${data.last4wPerWeek}`} foot="workouts per week" />
+        <Tile label="Working sets" value={fmtNum(totals.workingSets)} foot={`all time, ${totals.exercises} exercises`} />
+        <Tile label="Volume" value={`${fmtNum(totals.tonnage / 1000)}k lb`} foot="weight × reps, working sets" />
+        <Tile label="Time training" value={`${totals.hours} hours`} foot="sessions with a clock time" />
       </div>
 
       <div className="grid lifts">
         {data.mainLifts.map((l, i) => {
           const recent = l.points.filter((p) => p.origin !== 'snapshot').slice(-12).map((p) => p.e1rm);
+          const bw = l.tracking === 'addedWeightReps' || l.tracking === 'assistedReps';
           return (
             <a key={l.id} href={`#/exercises/${l.id}`} className="card lift">
               <div className="row">
-                <h2>{l.name.replace(' (Barbell)', '')}</h2>
+                <h2>{shortName(l.name)}</h2>
                 <span className="meta">{l.last && ago(l.last.date)}</span>
               </div>
               <div className="row" style={{ marginTop: 6 }}>
                 <span className="big num">{l.last ? fmtNum(l.last.e1rm) : '—'}</span>
-                <span className="meta num">{l.last && `${fmtW(l.last.weight)} × ${l.last.reps}`}</span>
+                <span className="meta num">{l.last && fmtSet(l.last, l.tracking)}</span>
               </div>
-              <div className="meta">est. 1RM, last session</div>
+              <div className="meta">est. 1RM last session{bw && `, incl. ${data.bodyweight} lb bodyweight`}</div>
               <Sparkline values={recent} color={LIFT_COLORS[i]} />
-              <div className="row meta" style={{ marginTop: 4 }}>
-                <span>90d best <span className="num">{l.best90 ? fmtNum(l.best90.e1rm) : '—'}</span></span>
+              <div className="row meta wrap" style={{ marginTop: 4 }}>
+                <span>90-day best <span className="num">{l.best90 ? fmtNum(l.best90.e1rm) : '—'}</span></span>
                 <span>
                   all-time <span className="num">{l.best ? fmtNum(l.best.e1rm) : '—'}</span>
-                  {l.best && ` · ${l.best.date.slice(0, 4)}`}
+                  {l.best && ` (${l.best.date.slice(0, 4)})`}
                 </span>
               </div>
             </a>
@@ -155,7 +157,10 @@ function Overview() {
         <div className="card-head">
           <div>
             <h2>Estimated 1RM</h2>
-            <div className="muted small">Best set per session (Epley, ≤12 reps). Hollow points are from notes or old sheets. Click a point to open it.</div>
+            <div className="muted small">
+              Your best set each session, converted to a one-rep max (Epley formula, sets of 12 reps or fewer).
+              Hollow points come from notes or old program sheets. Click a point to open that workout.
+            </div>
           </div>
           <Seg options={Object.keys(RANGES) as Range[]} value={range} onChange={setRange} />
         </div>
@@ -167,7 +172,7 @@ function Overview() {
               onClick={() => setPicked((p) => (p.includes(l.id) ? p.filter((x) => x !== l.id) : [...p, l.id]))}
             >
               <span className="swatch" style={{ background: picked.includes(l.id) ? LIFT_COLORS[i] : 'var(--axis)' }} />
-              {l.name.replace(' (Barbell)', '')}
+              {shortName(l.name)}
             </button>
           ))}
         </div>
@@ -176,13 +181,16 @@ function Overview() {
 
       <div className="card">
         <div className="card-head">
-          <h2>Weekly working sets</h2>
+          <div>
+            <h2>Weekly working sets</h2>
+            <div className="muted small">Sets per week by body part, warmups excluded.</div>
+          </div>
           <Seg options={[13, 26, 52]} value={weeksShown} onChange={setWeeksShown} label={(n) => `${n}w`} />
         </div>
         <StackedColumns rows={weeks} keys={REGIONS} />
       </div>
       <div className="card">
-        <div className="card-head"><h2>Consistency</h2><span className="muted small">shaded by working sets</span></div>
+        <div className="card-head"><h2>Consistency</h2><span className="muted small">each square is a day, darker means more sets</span></div>
         <CalendarHeat days={data.days} />
       </div>
 
@@ -190,17 +198,21 @@ function Overview() {
         <div className="card">
           <div className="card-head">
             <h2>Recent PRs</h2>
-            <span className="muted small">new all-time e1RM, last 90 days</span>
+            <span className="muted small">new all-time bests, last 90 days</span>
           </div>
           {data.recentPRs.length === 0 && <div className="muted">None in the last 90 days.</div>}
           {data.recentPRs.slice(0, 8).map((p) => (
             <a key={p.exerciseId} href={`#/exercises/${p.exerciseId}`} className="list-row">
               <span>
-                {p.name}
-                {p.count > 1 && <span className="muted small"> · {p.count} PRs</span>}
+                <div>{shortName(p.name)}</div>
+                <div className="muted small">
+                  {fmtDate(p.date, 'day', false)}
+                  {p.count > 1 && ` · ${p.count} PRs in 90 days`}
+                </div>
               </span>
-              <span className="num">
-                {fmtNum(p.e1rm)} <span className="muted">{fmtDate(p.date, 'day', false)}</span>
+              <span className="right">
+                <div className="num">{fmtSet(p, p.tracking)}</div>
+                <div className="muted small">est. 1RM <span className="num">{fmtNum(p.e1rm)}</span></div>
               </span>
             </a>
           ))}
@@ -215,7 +227,8 @@ function Overview() {
       </div>
 
       <p className="muted small">
-        Sources: {Object.entries(data.origins).map(([o, n]) => `${ORIGIN_LABEL[o as keyof typeof ORIGIN_LABEL]} ${n}`).join(' · ')}. Bodyweight lifts use {data.bodyweight} lb.
+        Data: {Object.entries(data.origins).map(([o, n]) => `${n} from ${ORIGIN_LABEL[o as keyof typeof ORIGIN_LABEL]}`).join(' · ')}.
+        Pull-ups and dips count {data.bodyweight} lb bodyweight.
       </p>
     </div>
   );
@@ -255,7 +268,7 @@ function WorkoutLine({ w }: { w: WorkoutRow }) {
       </span>
       <span className="right">
         <div className="small">{fmtDate(w.date, w.precision, false)}</div>
-        <div className="muted small num">{w.workingSets} sets{w.durationMin ? ` · ${w.durationMin}m` : ''}</div>
+        <div className="muted small num">{w.workingSets} sets{w.durationMin ? ` · ${w.durationMin} min` : ''}</div>
       </span>
     </a>
   );
@@ -274,7 +287,7 @@ function ExercisesPage() {
     <div className="stack">
       <div>
         <h1>Lifts</h1>
-        <p className="sub">{data.length} exercises, most recent first.</p>
+        <p className="sub">{data.length} exercises, most recently trained first. Best set is the one with the highest estimated 1RM.</p>
       </div>
       <div className="card-head" style={{ marginBottom: 0 }}>
         <div className="chips">
@@ -291,7 +304,7 @@ function ExercisesPage() {
               <th>Exercise</th>
               <th className="right">Sessions</th>
               <th className="right hide-sm">Sets</th>
-              <th className="right">Best e1RM</th>
+              <th className="right">Best set</th>
               <th className="right">Last</th>
             </tr>
           </thead>
@@ -304,7 +317,16 @@ function ExercisesPage() {
                 </td>
                 <td className="right num">{e.sessions}</td>
                 <td className="right num hide-sm">{e.workingSets}</td>
-                <td className="right num">{e.best ? fmtNum(e.best.e1rm) : <span className="muted">—</span>}</td>
+                <td className="right">
+                  {e.best ? (
+                    <>
+                      <div className="num">{fmtSet(e.best, e.tracking)}</div>
+                      <div className="muted small">est. 1RM <span className="num">{fmtNum(e.best.e1rm)}</span></div>
+                    </>
+                  ) : (
+                    <span className="muted">—</span>
+                  )}
+                </td>
                 <td className="right small">{ago(e.last)}</td>
               </tr>
             ))}
@@ -341,7 +363,13 @@ function ExercisePage({ id }: { id: string }) {
             }]),
       ]
     : [{ key: 'vol', label: 'Working sets', color: 'var(--series-1)', points: pts.map((p) => ({ date: p.date, v: p.workingSets, id: p.workoutId })) }];
-  const repMaxes = data.repMaxes.filter((r) => r.load);
+  // Collapse runs of rep counts that share one set: "1–3 reps: 245 × 3".
+  const repMaxes: { from: number; to: number; r: ExerciseDetail['repMaxes'][number] }[] = [];
+  for (const r of data.repMaxes.filter((x) => x.load)) {
+    const prev = repMaxes.at(-1);
+    if (prev && prev.r.workoutId === r.workoutId && prev.r.weight === r.weight && prev.r.actualReps === r.actualReps) prev.to = r.reps;
+    else repMaxes.push({ from: r.reps, to: r.reps, r });
+  }
 
   return (
     <div className="stack">
@@ -350,8 +378,13 @@ function ExercisePage({ id }: { id: string }) {
         <h1>{data.name}</h1>
         <p className="sub">
           {data.pattern} · {data.sessions.length} sessions
-          {data.best && <> · best <span className="num">{fmtNum(data.best.e1rm)}</span> e1RM ({fmtSet(data.best, data.tracking)}, {fmtDate(data.best.date)})</>}
-          {bw && <> · load counts {data.bodyweight} lb bodyweight</>}
+          {data.best && (
+            <>
+              {' '}· best set <span className="num">{fmtSet(data.best, data.tracking)}</span> on {fmtDate(data.best.date)} (est. 1RM{' '}
+              <span className="num">{fmtNum(data.best.e1rm)}</span>)
+            </>
+          )}
+          {bw && <> · estimates include {data.bodyweight} lb bodyweight</>}
         </p>
       </div>
       <div className="card">
@@ -364,12 +397,12 @@ function ExercisePage({ id }: { id: string }) {
       <div className="grid two">
         {repMaxes.length > 0 && (
           <div className="card">
-            <div className="card-head"><h2>Rep maxes</h2><span className="muted small">heaviest set of at least N reps</span></div>
+            <div className="card-head"><h2>Heaviest by reps</h2><span className="muted small">heaviest set done for at least that many reps</span></div>
             <table>
               <tbody>
-                {repMaxes.map((r) => (
-                  <tr key={r.reps} className="link" onClick={() => r.workoutId && go(`/workouts/${r.workoutId}`)}>
-                    <td className="muted num">{r.reps} RM</td>
+                {repMaxes.map(({ from, to, r }) => (
+                  <tr key={from} className="link" onClick={() => r.workoutId && go(`/workouts/${r.workoutId}`)}>
+                    <td className="muted">{from === to ? `${from} ${from === 1 ? 'rep' : 'reps'}` : `${from}–${to} reps`}</td>
                     <td className="num">{fmtSet({ weight: r.weight, reps: r.actualReps }, data.tracking)}</td>
                     <td className="right small muted">{r.date && fmtDate(r.date)}</td>
                   </tr>
@@ -379,7 +412,7 @@ function ExercisePage({ id }: { id: string }) {
           </div>
         )}
         <div className="card">
-          <div className="card-head"><h2>History</h2></div>
+          <div className="card-head"><h2>History</h2>{estimable && <span className="muted small">right: est. 1RM · dashed: warmups</span>}</div>
           {data.sessions.slice(0, 40).map((s) => (
             <a key={s.workoutId} href={`#/workouts/${s.workoutId}`} className="list-row">
               <span>
@@ -416,7 +449,7 @@ function WorkoutsPage() {
     <div className="stack">
       <div>
         <h1>Workouts</h1>
-        <p className="sub">{data.total} workouts and snapshots.</p>
+        <p className="sub">{data.total} entries, newest first. Old program sheets are best-set snapshots, not full workouts.</p>
       </div>
       {[...byMonth].map(([month, ws]) => (
         <div key={month} className="card">
@@ -441,9 +474,9 @@ function WorkoutPage({ id }: { id: string }) {
         <h1>{data.name}</h1>
         <p className="sub">
           {fmtDate(data.date, data.precision)}
-          {data.precision === 'minute' && ` · ${new Date(data.startedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`}
+          {data.precision === 'minute' && ` · ${fmtTime(data.startedAt)}`}
           {data.durationMin > 0 && ` · ${data.durationMin} min`} · {data.workingSets} working sets
-          {data.tonnage > 0 && ` · ${fmtNum(data.tonnage)} lb`} · <span className="badge">{ORIGIN_LABEL[data.origin]}</span>
+          {data.tonnage > 0 && ` · ${fmtNum(data.tonnage)} lb volume`} · <span className="badge">{ORIGIN_LABEL[data.origin]}</span>
         </p>
         {data.notes && <p>{data.notes}</p>}
       </div>
@@ -468,7 +501,7 @@ function WorkoutPage({ id }: { id: string }) {
               {best > 0 && (
                 <span className="right small">
                   <div className="num">{fmtNum(best)}</div>
-                  <div className="muted">e1RM</div>
+                  <div className="muted">est. 1RM</div>
                 </span>
               )}
             </div>

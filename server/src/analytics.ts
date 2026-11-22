@@ -56,13 +56,19 @@ export function loadWorkouts(): LWorkout[] {
 
 /**
  * Strong (as Landon used it) and the notes never flagged warmups, so ramp-up sets would count
- * as working sets. When an imported entry has no warmup flags, sets under 75% of its heaviest
- * set are warmups (the rule from the 2026 analysis). Bodyweight sets (weight 0) stay working.
+ * as working sets. When an imported entry has no warmup flags, the sets under 75% of its heaviest
+ * set (the rule from the 2026 analysis) are warmups, but only the ones before the first heavy set:
+ * lighter sets after it are back-off sets and count as working. Bodyweight sets (weight 0) stay working.
  */
 function inferWarmups(sets: LSet[]) {
   if (sets.some((s) => s.type === 'warmup')) return;
   const top = Math.max(0, ...sets.map((s) => s.weight ?? 0));
-  for (const s of sets) if (top > 0 && (s.weight ?? 0) > 0 && (s.weight ?? 0) < 0.75 * top) s.type = 'warmup';
+  if (top <= 0) return;
+  for (const s of sets) {
+    const w = s.weight ?? 0;
+    if (w >= 0.75 * top) break;
+    if (w > 0) s.type = 'warmup';
+  }
 }
 
 // ---------- per-set math ----------
@@ -98,8 +104,13 @@ export function loadOf(exerciseId: string, s: LSet): number {
   }
 }
 
+/** A 1RM means nothing for carries, planks or calf raises (mostly bodyweight), so they get none. */
+const NO_E1RM_PATTERNS = new Set<MovementPattern>(['Core', 'Calves']);
+
 /** Epley estimated 1RM on working sets of 1–12 reps; 0 when not estimable. */
 export function e1rm(exerciseId: string, s: LSet): number {
+  const pattern = EXERCISE_CATALOG[exerciseId]?.pattern;
+  if (pattern && NO_E1RM_PATTERNS.has(pattern)) return 0;
   const reps = s.reps ?? 0;
   const load = loadOf(exerciseId, s);
   if (!isWorking(s) || reps < 1 || reps > 12 || load <= 0) return 0;
@@ -132,8 +143,11 @@ const addDays = (day: string, n: number) => {
 };
 const daysAgo = (n: number) => addDays(localDay(new Date().toISOString()), -n);
 
-const durationMin = (w: LWorkout) =>
-  w.finishedAt ? Math.round((Date.parse(w.finishedAt) - Date.parse(w.startedAt)) / 60_000) : 0;
+/** Minutes from start to finish; 0 when unknown or implausible (a Strong entry finished 2 min in). */
+const durationMin = (w: LWorkout) => {
+  const m = w.finishedAt ? Math.round((Date.parse(w.finishedAt) - Date.parse(w.startedAt)) / 60_000) : 0;
+  return m >= 10 && m <= 180 ? m : 0;
+};
 
 // ---------- exercise sessions ----------
 
@@ -219,8 +233,7 @@ export function summary() {
     wk.workouts++;
     dd.workouts++;
     dd.names.push(w.name);
-    const m = durationMin(w);
-    if (m >= 10 && m <= 180) minutes += m;
+    minutes += durationMin(w);
     for (const e of w.exercises) {
       exerciseIds.add(e.exerciseId);
       const pattern = patternOf(e.exerciseId, e.name);
@@ -254,6 +267,7 @@ export function summary() {
     return {
       id,
       name: EXERCISE_CATALOG[id]?.name ?? id,
+      tracking: trackingOf(id),
       best: brief(pickBest(pts)),
       best90: brief(pickBest(pts.filter((p) => p.date >= cutoff90))),
       last: brief(pts.at(-1)),
@@ -266,7 +280,7 @@ export function summary() {
       const name = sessions.flatMap((w) => w.exercises).find((e) => e.exerciseId === id)?.name ?? id;
       // One row per exercise: its latest PR, plus how many it set in the window.
       const prs = prsOf(exerciseSessions(all, id)).filter((p) => p.date >= cutoff90);
-      return prs.length ? [{ exerciseId: id, name, count: prs.length, ...brief(prs.at(-1))! }] : [];
+      return prs.length ? [{ exerciseId: id, name, tracking: trackingOf(id), count: prs.length, ...brief(prs.at(-1))! }] : [];
     })
     .sort((a, b) => b.date.localeCompare(a.date));
 

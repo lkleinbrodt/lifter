@@ -82,7 +82,7 @@ h2 { font-size: 15px; margin: 0; }
 .card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
 .grid { display: grid; gap: 12px; }
 .tiles { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
-.lifts { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.lifts { grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); }
 .two { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
 .stack > * + * { margin-top: 12px; }
 
@@ -92,7 +92,8 @@ h2 { font-size: 15px; margin: 0; }
 
 .lift { display: block; transition: border-color 0.15s; }
 .lift:hover { border-color: var(--axis); }
-.lift .row { display: flex; justify-content: space-between; align-items: baseline; }
+.lift .row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.lift .row.wrap { flex-wrap: wrap; }
 .lift .big { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; }
 .lift .meta { color: var(--muted); font-size: 12px; }
 .delta-up { color: var(--good); }
@@ -116,6 +117,7 @@ tr.link:hover td { background: var(--surface-2); }
 
 .list-row { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border); }
 .list-row:last-child { border-bottom: 0; }
+.list-row > .right { white-space: nowrap; flex-shrink: 0; }
 .badge { font-size: 11px; padding: 1px 6px; border-radius: 4px; background: var(--surface-2); color: var(--text-secondary); white-space: nowrap; }
 .pr { color: var(--good); font-weight: 600; font-size: 11px; }
 
@@ -140,5 +142,11 @@ input.search { background: var(--surface-2); border: 1px solid var(--border); co
   .topbar { gap: 12px; }
   .brand span { display: none; }
   .tile .value { font-size: 22px; }
+  /* Two compact lift cards per row, and no lone tile on the last row. */
+  .lifts { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .lift { padding: 12px; }
+  .lift .big { font-size: 24px; }
+  .lift .row:first-child { flex-wrap: wrap; }
+  .tiles > :last-child:nth-child(odd) { grid-column: 1 / -1; }
   .hide-sm { display: none; }
 }

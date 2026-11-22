@@ -26,8 +26,8 @@ export type Summary = {
   origins: Record<Origin, number>;
   weeks: Week[];
   days: { date: string; workouts: number; sets: number; names: string[] }[];
-  mainLifts: { id: string; name: string; best?: Brief; best90?: Brief; last?: Brief; points: LiftPoint[] }[];
-  recentPRs: (Brief & { exerciseId: string; name: string; count: number })[];
+  mainLifts: { id: string; name: string; tracking: Tracking; best?: Brief; best90?: Brief; last?: Brief; points: LiftPoint[] }[];
+  recentPRs: (Brief & { exerciseId: string; name: string; tracking: Tracking; count: number })[];
   recent: WorkoutRow[];
 };
 export type LSet = { type: string; weight: number | null; reps: number | null; durationSec: number | null; done: boolean; e1rm?: number };
@@ -106,5 +106,12 @@ export function fmtSet(s: { weight?: number | null; reps?: number | null; durati
     tracking === 'addedWeightReps' ? (w ? `+${fmtW(w)}` : 'BW') : tracking === 'assistedReps' ? (w ? `−${fmtW(w)}` : 'BW') : fmtW(w);
   return `${load} × ${s.reps ?? 0}`;
 }
+
+/** Clock time where the lifting happened (the server buckets days in Pacific too). */
+export const fmtTime = (iso: string) =>
+  new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Los_Angeles' });
+
+/** "Squat (Barbell)" → "Squat": the barbell is the default, so the dashboard drops it. */
+export const shortName = (name: string) => name.replace(/ \(Barbell\)$/, '');
 
 export const ORIGIN_LABEL: Record<Origin, string> = { app: 'Lifter', strong: 'Strong', notes: 'Notes', snapshot: 'Old sheets' };
