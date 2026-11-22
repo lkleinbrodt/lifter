@@ -6,10 +6,11 @@ import * as Notifications from 'expo-notifications';
 import { previewRestVoice } from '@/lib/rest-sound';
 import * as Updates from 'expo-updates';
 
-import { Alert, Share, StyleSheet, View } from 'react-native';
+import { Alert, Linking, Share, StyleSheet, View } from 'react-native';
 import React, { useCallback, useState } from 'react';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { dbStats, getActiveWorkout } from '@/lib/db';
+import { ANALYTICS_URL, lastSyncStatus, syncNow, type SyncStatus } from '@/lib/analytics-sync';
 
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -42,16 +43,19 @@ function formatDate(date: Date | null | undefined) {
   return date ? date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '—';
 }
 
-/** The dev sections (App, Data, Tools), shown on the Settings tab and at /settings. */
+/** The dev sections (App, Data, Analytics, Tools), shown on the Settings tab and at /settings. */
 export function DevSettings() {
   const router = useRouter();
   const [diag, setDiag] = useState<Diagnostics | null>(null);
   const [updateStatus, setUpdateStatus] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
+  const [sync, setSync] = useState<SyncStatus | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
       let mounted = true;
+      void lastSyncStatus().then((st) => mounted && setSync(st));
       void (async () => {
       const [stats, active, gslp, permission] = await Promise.all([
         dbStats(),
@@ -111,6 +115,19 @@ export function DevSettings() {
     Alert.alert('Scheduled', 'Lock the phone; it should ding in 5 seconds.');
   };
 
+  const runSync = async (force = false) => {
+    setSyncing(true);
+    const result = await syncNow({ force });
+    setSync(result);
+    setSyncing(false);
+    if (!result.ok && !force && result.message.includes('?force=1')) {
+      Alert.alert('Sync refused', `${result.message}\n\nThe server keeps what it has unless you force it.`, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Force sync', style: 'destructive', onPress: () => void runSync(true) },
+      ]);
+    }
+  };
+
   const shareGslpState = async () => {
     const state = await loadGslpState();
     await Share.share({ message: JSON.stringify(state, null, 2) });
@@ -147,6 +164,16 @@ export function DevSettings() {
         <Row label="GSLP next" value={diag?.nextGslp ?? '…'} />
         <Row label="DB schema" value={diag ? `v${diag.stats.schemaVersion}` : '…'} />
         <Row label="Notifications" value={diag?.notifications ?? '…'} />
+      </Card>
+
+      <ThemedText type="caption" style={styles.section}>
+        Analytics
+      </ThemedText>
+      <Card style={styles.card}>
+        <Row label="Last sync" value={sync ? formatDate(new Date(sync.at)) : 'Never'} />
+        {sync ? <ThemedText style={styles.status}>{sync.ok ? sync.message : `Failed: ${sync.message}`}</ThemedText> : null}
+        <Button title="Sync now" loading={syncing} onPress={() => void runSync()} />
+        <Button title="Open dashboard" variant="secondary" onPress={() => void Linking.openURL(ANALYTICS_URL)} />
       </Card>
 
       <ThemedText type="caption" style={styles.section}>

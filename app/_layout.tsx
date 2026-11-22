@@ -2,13 +2,14 @@ import 'react-native-reanimated';
 
 import { DarkTheme, ThemeProvider, type Theme } from '@react-navigation/native';
 
-import { Appearance } from 'react-native';
+import { AppState, Appearance } from 'react-native';
 import { C, Colors } from '@/constants/theme';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { detailHeaderOptions } from '@/constants/navigation';
 import { refreshActiveWorkout, restoreRest } from '@/lib/session-store';
+import { syncSoon } from '@/lib/analytics-sync';
 import { useEffect } from 'react';
 
 export const unstable_settings = {
@@ -27,6 +28,10 @@ export default function RootLayout() {
   useEffect(() => {
     void refreshActiveWorkout();
     void restoreRest();
+    // Catch the analytics server up on launch and whenever the app comes back (e.g. Tailscale was off).
+    syncSoon();
+    const sub = AppState.addEventListener('change', (state) => state === 'active' && syncSoon());
+    return () => sub.remove();
   }, []);
 
   return (

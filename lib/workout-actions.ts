@@ -1,6 +1,7 @@
 // Workout lifecycle against storage: start, finish (with program progression), undo, discard.
 // Screens call these; the rules live in the pure modules they use.
 
+import { syncSoon } from './analytics-sync';
 import { deleteWorkout, exerciseHistory, getActiveWorkout, getWorkout, saveWorkout } from './db';
 import { gslpProgram } from './gslp-program';
 import { type GslpLiftKey, gslpLiftOrder, gslpLifts, undoLastSession } from './gslp';
@@ -57,6 +58,7 @@ export async function finishWorkout(
   }
   await saveWorkout(finished);
   setActiveWorkout(null);
+  syncSoon();
   return { workout: finished, summary };
 }
 
@@ -75,6 +77,7 @@ export async function reopenGslpWorkout(workoutId: string): Promise<Workout | nu
   const reopened = { ...workout, finishedAt: undefined };
   await saveWorkout(reopened);
   setActiveWorkout(summaryOf(reopened));
+  syncSoon();
   return reopened;
 }
 
@@ -92,6 +95,7 @@ export async function deleteFinishedWorkout(workoutId: string): Promise<{ undidP
   const undid = state.history.at(-1)?.workoutId === workoutId;
   if (undid) await saveGslpState(undoLastSession(state));
   await deleteWorkout(workoutId);
+  syncSoon();
   return { undidProgression: undid };
 }
 
