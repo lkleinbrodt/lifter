@@ -68,6 +68,7 @@ app/                      # Screens (Expo Router file-based routing)
   import-strong.tsx       # One-off Strong CSV import + GSLP weight check (opened from Settings)
   settings.tsx            # /settings: the dev sections on their own page (5/3/1 gear, deep links)
   workout/[id].tsx        # Active workout (Strong-style set table) and finished-workout summary
+                          #   (`?celebrate=1` replays the finish celebration without finishing anything)
   531/                    # 5/3/1 side
     _layout.tsx           # Stack: (tabs) + workout detail
     (tabs)/               # Tabs: Maxes, Workouts, Exercises
@@ -80,7 +81,8 @@ components/               # Reusable React components
   ui/action-menu.tsx      # Anchored ⋯ menu (replaces the system action sheet)
   ui/primitives.tsx       # Pill, Chip, Stat, ListRow, SectionHeader
   workout/                # Workout screen pieces: exercise card, set row, plate diagram, superset group, picker,
-                          #   history sheet, rest bar, minibar (active-workout-bar), summary, next-up helper
+                          #   history sheet, rest bar, minibar (active-workout-bar), summary, next-up helper,
+                          #   celebration (confetti/medallion/count-up/pop-in), finish-time sheet
   workout-history.tsx     # History tab: compact cards grouped by week
   gslp-weights.tsx        # GSLP weights section of the Settings tab
   dev-settings.tsx        # Dev sections (update, diagnostics, tools), on the Settings tab and /settings
@@ -106,6 +108,7 @@ lib/                      # Core business logic
   gslp-program.ts         # GSLP's ProgramModule
   strong-import.ts        # Strong CSV export → Workouts (pure)
   workout-edit.ts         # Pure edits on a Workout (sets, swap, finalize, stats, Previous-column matching)
+  workout-wins.ts         # Summary celebration data: personal records, workout number, week streak (pure)
   workout-actions.ts      # Workout lifecycle against storage: start, finish (+ progression), reopen, discard, delete
   workout-names.ts        # Display names from templates ("B · Horizontal + Deadlift"), imports matched by main lifts
   session-store.ts        # App-wide active workout + rest timer (useSession), local rest notifications
