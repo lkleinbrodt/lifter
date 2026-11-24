@@ -15,7 +15,15 @@ type LiveActivityNative = {
 
 const native = requireOptionalNativeModule<LiveActivityNative>('LiveActivity');
 
-export type LiveNextSet = { setId: string; name: string; detail: string; numbers: string; canCheck: boolean };
+export type LiveNextSet = {
+  setId: string;
+  name: string;
+  detail: string;
+  numbers: string;
+  canCheck: boolean;
+  /** Barbell sets only: plates per side, heaviest first ([] = empty bar). */
+  plates?: number[];
+};
 
 /** Mirrors LifterActivityAttributes.ContentState. Dates are epoch ms. */
 export type LiveState = {

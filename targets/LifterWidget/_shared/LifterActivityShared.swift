@@ -20,6 +20,8 @@ struct LifterNextSet: Codable, Hashable {
   var numbers: String
   /// False when the set needs input first (an AMRAP set, or no numbers yet): no ✓ button.
   var canCheck: Bool
+  /// Barbell sets only: plates per side, heaviest first (empty = just the bar).
+  var plates: [Double]? = nil
 }
 
 @available(iOS 16.1, *)

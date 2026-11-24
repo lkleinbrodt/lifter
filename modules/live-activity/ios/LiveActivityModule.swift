@@ -15,6 +15,8 @@ struct LifterNextSet: Codable, Hashable {
   var detail: String
   var numbers: String
   var canCheck: Bool
+  /// Barbell sets only: plates per side, heaviest first (empty = just the bar).
+  var plates: [Double]? = nil
 }
 
 @available(iOS 16.1, *)
