@@ -1,4 +1,5 @@
-// The workout Live Activity: rest countdown (then a stopwatch since the last set), the next set, and ✓ / +15 / Skip buttons, on the lock
+// The workout Live Activity: rest countdown (then a stopwatch since the last set), the next set (with
+// plates per side for barbell lifts, lock screen only), and ✓ / +15 / Skip buttons, on the lock
 // screen and in the Dynamic Island. Countdowns are timer texts drawn by iOS, so they tick without
 // the app running. The app starts, updates and ends it (lib/live-activity.ts).
 
@@ -145,11 +146,13 @@ private struct LockScreenView: View {
 
   var body: some View {
     let clock = Clock(attributes, state, stale: stale)
-    VStack(alignment: .leading, spacing: 12) {
+    // A plate row costs a line; tighten everything else so the card stays under iOS's 160pt cap.
+    let dense = state.next?.plates != nil
+    VStack(alignment: .leading, spacing: dense ? 8 : 12) {
       HStack(alignment: .center, spacing: 12) {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: dense ? 0 : 2) {
           Caption(clock.caption(attributes))
-          ClockText(clock: clock)
+          ClockText(clock: clock, size: dense ? 28 : 34)
         }
         Spacer(minLength: 0)
         if clock.resting {
@@ -165,28 +168,51 @@ private struct LockScreenView: View {
           .progressViewStyle(.linear)
           .tint(Palette.accent)
       }
-      NextSetRow(state: state)
+      NextSetRow(state: state, showPlates: true)
     }
-    .padding(16)
+    .padding(.horizontal, 16)
+    .padding(.vertical, dense ? 12 : 16)
   }
 }
 
 private struct NextSetRow: View {
   let state: LifterActivityAttributes.ContentState
+  /// Lock screen only: the Dynamic Island has no room for the plate row.
+  var showPlates = false
 
   var body: some View {
     HStack(alignment: .center, spacing: 12) {
       if let next = state.next {
-        VStack(alignment: .leading, spacing: 2) {
-          Caption("NEXT · \(next.detail.uppercased())")
-          Text(next.name)
-            .font(.system(size: 17, weight: .semibold))
-            .foregroundStyle(Palette.t1)
-            .lineLimit(1)
-          Text(next.numbers)
-            .font(.system(size: 15, design: .monospaced))
-            .foregroundStyle(Palette.t2)
-            .lineLimit(1)
+        if showPlates, let plates = next.plates {
+          // Barbell set: name and numbers share a line, plates below.
+          VStack(alignment: .leading, spacing: 1) {
+            Caption("NEXT · \(next.detail.uppercased())")
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+              Text(next.name)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(Palette.t1)
+                .lineLimit(1)
+              Text(next.numbers)
+                .font(.system(size: 15, design: .monospaced))
+                .foregroundStyle(Palette.t2)
+                .lineLimit(1)
+                .layoutPriority(1)
+            }
+            PlateBar(plates: plates)
+              .padding(.top, 4)
+          }
+        } else {
+          VStack(alignment: .leading, spacing: 2) {
+            Caption("NEXT · \(next.detail.uppercased())")
+            Text(next.name)
+              .font(.system(size: 17, weight: .semibold))
+              .foregroundStyle(Palette.t1)
+              .lineLimit(1)
+            Text(next.numbers)
+              .font(.system(size: 15, design: .monospaced))
+              .foregroundStyle(Palette.t2)
+              .lineLimit(1)
+          }
         }
         Spacer(minLength: 0)
         if next.canCheck {
@@ -206,6 +232,57 @@ private struct NextSetRow: View {
         Spacer(minLength: 0)
       }
     }
+  }
+}
+
+/// One side of the bar, loaded: the workout card's plate diagram (components/workout/plate-diagram.tsx), scaled down.
+private struct PlateBar: View {
+  let plates: [Double]
+
+  private static let specs: [Double: (height: CGFloat, color: Color)] = [
+    45: (24, Color(red: 0x4B / 255, green: 0x52 / 255, blue: 0x58 / 255)),
+    35: (22, Color(red: 0x46 / 255, green: 0x4D / 255, blue: 0x53 / 255)),
+    25: (20, Color(red: 0x41 / 255, green: 0x48 / 255, blue: 0x4D / 255)),
+    10: (17, Color(red: 0x59 / 255, green: 0x60 / 255, blue: 0x66 / 255)),
+    5: (15, Color(red: 0x61 / 255, green: 0x68 / 255, blue: 0x6E / 255)),
+    2.5: (14, Color(red: 0x6A / 255, green: 0x71 / 255, blue: 0x77 / 255)),
+    1.25: (14, Color(red: 0x72 / 255, green: 0x79 / 255, blue: 0x7F / 255)),
+  ]
+
+  private static func label(_ plate: Double) -> String {
+    plate == plate.rounded() ? String(Int(plate)) : String(plate)
+  }
+
+  var body: some View {
+    HStack(spacing: 2) {
+      RoundedRectangle(cornerRadius: 1).fill(Palette.t1.opacity(0.2)).frame(width: 14, height: 4)
+      RoundedRectangle(cornerRadius: 1.5).fill(Palette.t3).frame(width: 4, height: 10)
+      if plates.isEmpty {
+        Text("empty bar")
+          .font(.system(size: 11))
+          .foregroundStyle(Palette.t3)
+          .padding(.leading, 4)
+      } else {
+        ForEach(Array(plates.enumerated()), id: \.offset) { _, plate in
+          let spec = Self.specs[plate] ?? (height: 14, color: Color(red: 0x72 / 255, green: 0x79 / 255, blue: 0x7F / 255))
+          Text(Self.label(plate))
+            .font(.system(size: 9, weight: .bold, design: .monospaced))
+            .foregroundStyle(Palette.t1)
+            .padding(.horizontal, 3)
+            .frame(minWidth: 18, minHeight: spec.height, maxHeight: spec.height)
+            .background(spec.color, in: RoundedRectangle(cornerRadius: 3))
+        }
+        UnevenRoundedRectangle(bottomTrailingRadius: 2, topTrailingRadius: 2)
+          .fill(Palette.t1.opacity(0.2))
+          .frame(width: 9, height: 4)
+        Text("per side")
+          .font(.system(size: 11))
+          .foregroundStyle(Palette.t3)
+          .padding(.leading, 6)
+          .lineLimit(1)
+      }
+    }
+    .frame(height: 24)
   }
 }
 

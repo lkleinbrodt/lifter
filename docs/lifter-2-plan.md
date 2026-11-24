@@ -239,6 +239,7 @@ Each phase is its own branch and PR.
 
 ### Live Activity on the lock screen (1.3.0, needs a native build)
 - While a workout runs, a Live Activity on the lock screen and in the Dynamic Island shows the rest countdown (with a draining bar), the next set (exercise, set, weight × reps) and the done/total count. When the rest is over (or skipped), the countdown becomes a running stopwatch since the last checked set; before the first set it shows the workout's elapsed time. All of these are iOS timer texts, so they tick without the app. The activity's stale date is the rest's end, so the switch happens even while the app is suspended.
+- Plate math (lock screen only): on a barbell set, weight × reps sits beside the name and a scaled-down plate diagram (plates per side) fills the line below. With it showing, the card tightens its padding and clock so it stays under iOS's 160pt cap. JS computes the plates (`plates` on the next set; omitted for non-barbell lifts, `[]` for an empty bar).
 - Buttons: ✓ the next set, +15 and Skip while resting. There's no ✓ on an AMRAP set (reps need typing) or on a set with no numbers. Tapping anywhere else opens the app.
 - Pieces:
   - `targets/LifterWidget/`: the widget extension (SwiftUI), generated into `ios/` by `@bacons/apple-targets`. iOS 17+, since the buttons are App Intents.

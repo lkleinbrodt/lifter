@@ -12,6 +12,7 @@ import * as Live from '@/modules/live-activity';
 import { adjustRest, getActiveWorkoutCached, getSession, setActiveWorkout, skipRest, startRest, subscribe, type RestTimer } from './session-store';
 import { currentSet, filledForCheck, previousSetFor, restsAfter, setHasValues, type SetRef, updateSet } from './workout-edit';
 import { getExercise, restSecFor } from './exercises';
+import { calculatePlateMath } from './plates';
 import type { Workout } from './workout';
 import { describeSet } from '@/components/workout/next-up';
 import { getActiveWorkout, saveWorkout } from './db';
@@ -37,6 +38,7 @@ function liveSet(workout: Workout, ref: SetRef): Live.LiveNextSet | undefined {
     numbers: amrap && shown.numbers !== '—' ? `${shown.numbers}+` : shown.numbers,
     // AMRAP reps need typing in, and a set without numbers can't be logged blind.
     canCheck: !amrap && setHasValues(filled, tracking),
+    plates: shown.plateWeight && shown.plateWeight > 0 ? calculatePlateMath(shown.plateWeight) : undefined,
   };
 }
 
